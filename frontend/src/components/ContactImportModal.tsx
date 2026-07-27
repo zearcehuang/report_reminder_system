@@ -43,18 +43,19 @@ export const ContactImportModal: React.FC<Props> = ({ isOpen, onClose, onContact
 
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
-    setTimeout(async () => {
-      const mockImported: Omit<Contact, 'id'>[] = [
-        { name: 'Grace Lin (軟體資深副理)', email: 'grace.lin@company.com', department: '資訊處' },
-        { name: 'Kevin Sung (資安工程師)', email: 'kevin.sung@company.com', department: '資安組' },
-      ];
-      await api.uploadContacts(mockImported);
+    try {
+      const result = await api.importContactsFile(file);
       setIsUploading(false);
-      setSuccessMsg(`已從 ${file.name} 匯入 2 筆 Outlook 聯絡人`);
-      setTimeout(() => setSuccessMsg(null), 3000);
+      const count = result.addedCount ?? result.contacts?.length ?? 0;
+      setSuccessMsg(`已成功從 ${file.name} 匯入 ${count} 筆 Outlook 聯絡人！`);
+      setTimeout(() => setSuccessMsg(null), 4000);
       await loadContacts();
       if (onContactsUpdated) onContactsUpdated();
-    }, 600);
+    } catch {
+      setIsUploading(false);
+      setSuccessMsg('匯入失敗，請確認檔案格式是否為 Outlook CSV/vCard');
+      setTimeout(() => setSuccessMsg(null), 4000);
+    }
   };
 
   if (!isOpen) return null;
@@ -88,17 +89,27 @@ export const ContactImportModal: React.FC<Props> = ({ isOpen, onClose, onContact
 
         {/* Upload dropzone mini */}
         <div style={{
-          border: '2px dashed var(--surface-glass-border)',
-          background: 'rgba(10, 14, 24, 0.4)',
+          border: '2px dashed #cbd5e1',
+          background: '#f8fafc',
           borderRadius: 'var(--radius-md)',
-          padding: '1rem',
+          padding: '1.25rem',
           textAlign: 'center',
           marginBottom: '1.25rem',
           cursor: 'pointer',
-        }}>
-          <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: '#60a5fa' }}>
-            <Upload size={16} />
-            <span>{isUploading ? '匯入中...' : '匯入 Outlook Contacts (.csv / .vcf 格式檔案)'}</span>
+          transition: 'all 0.2s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = '#3b82f6';
+          e.currentTarget.style.background = '#eff6ff';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = '#cbd5e1';
+          e.currentTarget.style.background = '#f8fafc';
+        }}
+        >
+          <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#2563eb', fontWeight: 600 }}>
+            <Upload size={18} />
+            <span>{isUploading ? '匯入處理中...' : '點擊或拖曳匯入 Outlook Contacts (.csv / .vcf 檔案)'}</span>
             <input
               type="file"
               accept=".csv,.vcf"
@@ -142,18 +153,19 @@ export const ContactImportModal: React.FC<Props> = ({ isOpen, onClose, onContact
 
         {successMsg && (
           <div className="animate-fade-in" style={{
-            background: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            color: '#34d399',
-            padding: '0.5rem 0.85rem',
+            background: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            color: '#047857',
+            padding: '0.6rem 0.9rem',
             borderRadius: 'var(--radius-sm)',
             marginBottom: '1.25rem',
-            fontSize: '0.825rem',
+            fontSize: '0.85rem',
+            fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
-            gap: '0.4rem',
+            gap: '0.5rem',
           }}>
-            <Check size={16} /> {successMsg}
+            <Check size={18} /> {successMsg}
           </div>
         )}
 
@@ -163,37 +175,54 @@ export const ContactImportModal: React.FC<Props> = ({ isOpen, onClose, onContact
             <div
               key={c.id}
               style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid var(--surface-glass-border)',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
                 borderRadius: 'var(--radius-sm)',
                 padding: '0.65rem 1rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 fontSize: '0.85rem',
+                boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+                transition: 'background 0.15s ease',
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#ffffff')}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{
                   width: '32px',
                   height: '32px',
                   borderRadius: '50%',
-                  background: 'var(--accent-gradient)',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #2563eb 100%)',
+                  color: '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '0.75rem',
+                  fontSize: '0.8rem',
                   fontWeight: 700,
+                  boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
                 }}>
                   {c.name.charAt(0)}
                 </div>
                 <div>
-                  <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{c.email}</div>
+                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{c.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#475569' }}>{c.email}</div>
                 </div>
               </div>
 
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{c.department}</span>
+              {c.department && (
+                <span style={{
+                  fontSize: '0.725rem',
+                  color: '#4338ca',
+                  background: '#e0e7ff',
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: '4px',
+                  fontWeight: 600
+                }}>
+                  {c.department}
+                </span>
+              )}
             </div>
           ))}
         </div>

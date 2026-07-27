@@ -81,12 +81,15 @@ export const TeamsCardModal: React.FC<Props> = ({
           </div>
 
           <div style={{
-            background: '#1f1f1f',
+            background: '#ffffff',
             borderLeft: '4px solid #5b5fc7',
+            borderTop: '1px solid #e1dfdd',
+            borderRight: '1px solid #e1dfdd',
+            borderBottom: '1px solid #e1dfdd',
             borderRadius: '8px',
             padding: '1.25rem',
-            color: '#ffffff',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            color: '#242424',
+            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.08)',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           }}>
             {/* Teams Header */}
@@ -102,21 +105,22 @@ export const TeamsCardModal: React.FC<Props> = ({
                 }}>
                   專案提醒通知 BOT
                 </span>
-                <span style={{ fontSize: '0.8rem', color: '#a1a1a1' }}>[{project.code}] {project.name}</span>
+                <span style={{ fontSize: '0.8rem', color: '#605e5c' }}>[{project.code}] {project.name}</span>
               </div>
-              <span style={{ fontSize: '0.75rem', color: '#ffb74d', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 <Clock size={12} /> 提前 {scheduleItem.advanceNoticeDays} 天預警
               </span>
             </div>
 
             {/* Title */}
-            <h3 style={{ fontSize: '1.15rem', color: '#ffffff', marginBottom: '0.75rem', fontWeight: 700 }}>
+            <h3 style={{ fontSize: '1.15rem', color: '#0f172a', marginBottom: '0.75rem', fontWeight: 700 }}>
               📌 履約報告繳交提醒：{scheduleItem.title}
             </h3>
 
             {/* Facts Grid */}
             <div style={{
-              background: '#2d2d2d',
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
               borderRadius: '6px',
               padding: '0.85rem 1rem',
               display: 'grid',
@@ -126,39 +130,39 @@ export const TeamsCardModal: React.FC<Props> = ({
               marginBottom: '1rem',
             }}>
               <div>
-                <span style={{ color: '#adadad', display: 'block', fontSize: '0.725rem' }}>報告死線 (Due Date)</span>
-                <strong style={{ color: '#f87171', fontSize: '0.95rem' }}>{scheduleItem.calculatedDate}</strong>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>報告死線 (Due Date)</span>
+                <strong style={{ color: '#dc2626', fontSize: '0.95rem' }}>{scheduleItem.calculatedDate}</strong>
                 {scheduleItem.wasShiftedByHoliday && (
-                  <span style={{ fontSize: '0.7rem', color: '#c084fc', marginLeft: '0.3rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#7c3aed', marginLeft: '0.3rem' }}>
                     ({scheduleItem.holidayName}順延)
                   </span>
                 )}
               </div>
 
               <div>
-                <span style={{ color: '#adadad', display: 'block', fontSize: '0.725rem' }}>報告負責人 (Owners)</span>
-                <strong style={{ color: '#818cf8' }}>{scheduleItem.owners.join(', ')}</strong>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>報告負責人 (Owners)</span>
+                <strong style={{ color: '#4338ca' }}>{scheduleItem.owners.join(', ')}</strong>
               </div>
 
               <div>
-                <span style={{ color: '#adadad', display: 'block', fontSize: '0.725rem' }}>當前狀態</span>
-                <span style={{ color: '#fbbf24', fontWeight: 600 }}>{scheduleItem.status}</span>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>當前狀態</span>
+                <span style={{ color: '#d97706', fontWeight: 600 }}>{scheduleItem.status}</span>
               </div>
 
               <div>
-                <span style={{ color: '#adadad', display: 'block', fontSize: '0.725rem' }}>專案 D-Day 基準</span>
-                <span style={{ color: '#e2e8f0' }}>D + {scheduleItem.dDayOffset} 天</span>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>專案 D-Day 基準</span>
+                <span style={{ color: '#334155' }}>D + {scheduleItem.dDayOffset} 天</span>
               </div>
             </div>
 
             {/* Custom note inside preview */}
             <div style={{
-              background: 'rgba(91, 95, 199, 0.15)',
-              border: '1px dashed rgba(91, 95, 199, 0.4)',
+              background: '#eff6ff',
+              border: '1px dashed #5b5fc7',
               borderRadius: '6px',
               padding: '0.65rem 0.85rem',
               fontSize: '0.8rem',
-              color: '#d1d5db',
+              color: '#1e3a8a',
               marginBottom: '1rem',
             }}>
               💬 <strong>備註說明:</strong> {customNote || '請承辦同仁於死線前完成上傳並點擊團隊審核確認！'}
@@ -181,8 +185,9 @@ export const TeamsCardModal: React.FC<Props> = ({
               </div>
 
               <div style={{
-                background: 'rgba(255,255,255,0.08)',
-                color: '#e2e8f0',
+                background: '#f1f5f9',
+                color: '#334155',
+                border: '1px solid #cbd5e1',
                 padding: '0.45rem 1rem',
                 borderRadius: '4px',
                 fontSize: '0.8rem',
@@ -211,13 +216,14 @@ export const TeamsCardModal: React.FC<Props> = ({
         {/* Success Alert */}
         {sendSuccess && (
           <div className="animate-fade-in" style={{
-            background: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            color: '#34d399',
+            background: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            color: '#047857',
             padding: '0.75rem 1rem',
             borderRadius: 'var(--radius-sm)',
             marginBottom: '1.25rem',
             fontSize: '0.85rem',
+            fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',

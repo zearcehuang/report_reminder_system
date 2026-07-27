@@ -73,8 +73,8 @@ export const DocumentPreviewModal: React.FC<Props> = ({
 
         {/* Info Banner */}
         <div style={{
-          background: 'rgba(99, 102, 241, 0.12)',
-          border: '1px solid rgba(99, 102, 241, 0.3)',
+          background: '#eff6ff',
+          border: '1px solid #bfdbfe',
           borderRadius: 'var(--radius-sm)',
           padding: '0.75rem 1rem',
           marginBottom: '1.25rem',
@@ -83,21 +83,21 @@ export const DocumentPreviewModal: React.FC<Props> = ({
           justifyContent: 'space-between',
           fontSize: '0.825rem',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#a5b4fc' }}>
-            <Sparkles size={18} color="#818cf8" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af', fontWeight: 600 }}>
+            <Sparkles size={18} color="#2563eb" />
             AI 智能文件解析已自動偵測 <strong>{milestones.length}</strong> 項報告繳交死線與相關負責人
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
               onClick={() => handleToggleSelectAll(true)}
-              style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', fontSize: '0.75rem' }}
+              style={{ background: 'transparent', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
             >
               全選
             </button>
-            <span style={{ color: 'var(--text-muted)' }}>|</span>
+            <span style={{ color: '#94a3b8' }}>|</span>
             <button
               onClick={() => handleToggleSelectAll(false)}
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}
+              style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.75rem' }}
             >
               取消全選
             </button>
@@ -111,12 +111,13 @@ export const DocumentPreviewModal: React.FC<Props> = ({
               key={m.id}
               onClick={() => handleToggleSelect(m.id)}
               style={{
-                background: m.selected ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-                border: m.selected ? '1px solid var(--accent-primary)' : '1px solid var(--surface-glass-border)',
+                background: m.selected ? '#eff6ff' : '#ffffff',
+                border: m.selected ? '2px solid #3b82f6' : '1px solid #e2e8f0',
                 borderRadius: 'var(--radius-md)',
                 padding: '0.85rem 1.15rem',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
+                boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
@@ -129,30 +130,30 @@ export const DocumentPreviewModal: React.FC<Props> = ({
 
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                    <h4 style={{ fontSize: '0.95rem', color: m.selected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                    <h4 style={{ fontSize: '0.95rem', color: m.selected ? '#0f172a' : '#334155', fontWeight: 600 }}>
                       {m.title}
                     </h4>
                     <span style={{
-                      background: 'rgba(6, 182, 212, 0.15)',
-                      color: 'var(--accent-secondary)',
+                      background: '#e0f2fe',
+                      color: '#0369a1',
                       padding: '0.15rem 0.6rem',
                       borderRadius: 'var(--radius-full)',
                       fontSize: '0.75rem',
                       fontFamily: 'var(--font-mono)',
-                      fontWeight: 600,
+                      fontWeight: 700,
                     }}>
                       D + {m.dayOffset} 天 ({m.matchedDate})
                     </span>
                   </div>
 
-                  <p style={{ fontSize: '0.775rem', color: 'var(--text-muted)', marginBottom: '0.4rem', fontStyle: 'italic' }}>
+                  <p style={{ fontSize: '0.775rem', color: '#64748b', marginBottom: '0.4rem', fontStyle: 'italic' }}>
                     內文依據: "{m.originalText}"
                   </p>
 
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     {m.owners.map((owner) => (
-                      <span key={owner} style={{ fontSize: '0.725rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                        <User size={12} /> {owner}
+                      <span key={owner} style={{ fontSize: '0.725rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.2rem', background: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                        <User size={12} color="#4f46e5" /> {owner}
                       </span>
                     ))}
                   </div>

@@ -92,13 +92,14 @@ export const DocumentUploader: React.FC<Props> = ({ projectDDay, onExtractSucces
         <div style={{ display: 'flex', gap: '0.35rem' }}>
           {['.docx', '.pdf', '.xlsx', '.csv', '.txt'].map((ext) => (
             <span key={ext} style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--surface-glass-border)',
-              color: 'var(--text-muted)',
+              background: '#f1f5f9',
+              border: '1px solid #cbd5e1',
+              color: '#475569',
               fontSize: '0.7rem',
               padding: '0.15rem 0.45rem',
               borderRadius: '4px',
               fontFamily: 'var(--font-mono)',
+              fontWeight: 600,
             }}>
               {ext}
             </span>

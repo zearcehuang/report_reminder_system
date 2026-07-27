@@ -128,7 +128,7 @@ export const ProjectSwitcher: React.FC<Props> = ({
               );
             })}
 
-            <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '0.4rem 0' }} />
+            <div style={{ height: '1px', background: '#e2e8f0', margin: '0.4rem 0' }} />
 
             <button
               onClick={() => {

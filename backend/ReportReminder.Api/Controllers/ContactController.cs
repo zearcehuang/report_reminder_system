@@ -143,48 +143,132 @@ public class ContactController : ControllerBase
     private List<Contact> ParseOutlookCsv(string text)
     {
         var list = new List<Contact>();
-        using var reader = new StringReader(text);
-        string? headerLine = reader.ReadLine();
-        if (headerLine == null) return list;
+        if (string.IsNullOrWhiteSpace(text)) return list;
+        if (text.StartsWith("\uFEFF")) text = text.Substring(1);
 
-        var headers = headerLine.Split(',').Select(h => h.Trim('"').Trim()).ToArray();
-        int nameIdx = Array.FindIndex(headers, h => h.Contains("Name", StringComparison.OrdinalIgnoreCase) || h.Contains("姓名", StringComparison.OrdinalIgnoreCase));
-        int emailIdx = Array.FindIndex(headers, h => h.Contains("E-mail", StringComparison.OrdinalIgnoreCase) || h.Contains("Email", StringComparison.OrdinalIgnoreCase) || h.Contains("郵件", StringComparison.OrdinalIgnoreCase));
-        int deptIdx = Array.FindIndex(headers, h => h.Contains("Department", StringComparison.OrdinalIgnoreCase) || h.Contains("部門", StringComparison.OrdinalIgnoreCase));
-        int titleIdx = Array.FindIndex(headers, h => h.Contains("Title", StringComparison.OrdinalIgnoreCase) || h.Contains("職稱", StringComparison.OrdinalIgnoreCase));
-
-        string? line;
-        while ((line = reader.ReadLine()) != null)
+        var rows = new List<List<string>>();
+        using (var reader = new StringReader(text))
         {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            var parts = line.Split(',').Select(p => p.Trim('"').Trim()).ToArray();
-
-            string email = (emailIdx >= 0 && emailIdx < parts.Length) ? parts[emailIdx] : "";
-            if (string.IsNullOrWhiteSpace(email))
+            string? rawLine;
+            while ((rawLine = reader.ReadLine()) != null)
             {
-                // Try regex search for email in line
-                var match = Regex.Match(line, @"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}");
-                if (match.Success) email = match.Value;
-            }
-
-            if (!string.IsNullOrWhiteSpace(email))
-            {
-                string name = (nameIdx >= 0 && nameIdx < parts.Length) ? parts[nameIdx] : email.Split('@')[0];
-                string dept = (deptIdx >= 0 && deptIdx < parts.Length) ? parts[deptIdx] : "";
-                string title = (titleIdx >= 0 && titleIdx < parts.Length) ? parts[titleIdx] : "";
-
-                list.Add(new Contact
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Name = string.IsNullOrWhiteSpace(name) ? email.Split('@')[0] : name,
-                    Email = email,
-                    Department = dept,
-                    Title = title,
-                    Source = "OutlookCSV"
-                });
+                if (string.IsNullOrWhiteSpace(rawLine)) continue;
+                var row = ParseCsvLine(rawLine);
+                if (row.Count > 0) rows.Add(row);
             }
         }
 
+        if (rows.Count < 2) return list;
+
+        var headers = rows[0].Select(h => h.Trim('"', '\'', ' ')).ToList();
+        int fnIdx = headers.FindIndex(h => h.Equals("名字", StringComparison.OrdinalIgnoreCase) || h.Equals("First Name", StringComparison.OrdinalIgnoreCase));
+        int lnIdx = headers.FindIndex(h => h.Equals("姓氏", StringComparison.OrdinalIgnoreCase) || h.Equals("Last Name", StringComparison.OrdinalIgnoreCase));
+        int titleNameIdx = headers.FindIndex(h => h.Equals("稱謂", StringComparison.OrdinalIgnoreCase) || h.Equals("Suffix", StringComparison.OrdinalIgnoreCase));
+        int compIdx = headers.FindIndex(h => h.Contains("公司", StringComparison.OrdinalIgnoreCase) || h.Contains("Company", StringComparison.OrdinalIgnoreCase));
+        int deptIdx = headers.FindIndex(h => h.Contains("部門", StringComparison.OrdinalIgnoreCase) || h.Contains("Department", StringComparison.OrdinalIgnoreCase));
+        int jobIdx = headers.FindIndex(h => h.Contains("職稱", StringComparison.OrdinalIgnoreCase) || h.Contains("Job Title", StringComparison.OrdinalIgnoreCase));
+        int email1Idx = headers.FindIndex(h => h.Contains("電子郵件地址", StringComparison.OrdinalIgnoreCase) || h.Contains("E-mail Address", StringComparison.OrdinalIgnoreCase));
+        int email2Idx = headers.FindIndex(h => h.Contains("電子郵件 2 地址", StringComparison.OrdinalIgnoreCase));
+        int dispNameIdx = headers.FindIndex(h => h.Contains("電子郵件顯示名稱", StringComparison.OrdinalIgnoreCase) || h.Contains("Display Name", StringComparison.OrdinalIgnoreCase));
+
+        var seenEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (int r = 1; r < rows.Count; r++)
+        {
+            var row = rows[r];
+            string GetVal(int idx) => (idx >= 0 && idx < row.Count) ? row[idx].Trim('"', '\'', ' ') : "";
+
+            string firstName = GetVal(fnIdx);
+            string lastName = GetVal(lnIdx);
+            string titleName = GetVal(titleNameIdx);
+            string company = GetVal(compIdx);
+            string dept = GetVal(deptIdx);
+            string jobTitle = GetVal(jobIdx);
+            string emailDispName = GetVal(dispNameIdx);
+
+            string email = GetVal(email1Idx);
+            if (string.IsNullOrWhiteSpace(email) || !email.Contains('@') || email.StartsWith("/o="))
+            {
+                email = GetVal(email2Idx);
+            }
+            if (string.IsNullOrWhiteSpace(email) || !email.Contains('@') || email.StartsWith("/o="))
+            {
+                var lineStr = string.Join(" ", row);
+                var match = Regex.Match(lineStr, @"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}");
+                if (match.Success) email = match.Value;
+            }
+
+            if (string.IsNullOrWhiteSpace(email) || !email.Contains('@') || email.StartsWith("/o=")) continue;
+            if (seenEmails.Contains(email)) continue;
+            seenEmails.Add(email);
+
+            string displayName = "";
+            if (!string.IsNullOrWhiteSpace(lastName) || !string.IsNullOrWhiteSpace(firstName))
+            {
+                bool isEn = Regex.IsMatch((lastName + firstName).Trim(), @"^[A-Za-z0-9\s._-]+$");
+                displayName = isEn ? $"{firstName} {lastName}".Trim() : $"{lastName}{firstName}";
+                if (!string.IsNullOrWhiteSpace(titleName) && !displayName.Contains(titleName))
+                {
+                    displayName += $" {titleName}";
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(emailDispName) && emailDispName != email && !emailDispName.StartsWith("/o="))
+            {
+                displayName = emailDispName;
+            }
+            else
+            {
+                displayName = email.Split('@')[0];
+            }
+
+            string department = !string.IsNullOrWhiteSpace(dept) ? dept : (!string.IsNullOrWhiteSpace(company) ? company : "通用聯絡人");
+
+            list.Add(new Contact
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = displayName,
+                Email = email,
+                Department = department,
+                Title = jobTitle,
+                Source = "OutlookCSV"
+            });
+        }
+
         return list;
+    }
+
+    private List<string> ParseCsvLine(string line)
+    {
+        var result = new List<string>();
+        bool inQuotes = false;
+        var curr = new System.Text.StringBuilder();
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (c == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    curr.Append('"');
+                    i++;
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                result.Add(curr.ToString().Trim());
+                curr.Clear();
+            }
+            else
+            {
+                curr.Append(c);
+            }
+        }
+        result.Add(curr.ToString().Trim());
+        return result;
     }
 }

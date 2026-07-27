@@ -294,7 +294,7 @@ export const RuleManager: React.FC<Props> = ({
                   )}
                 </div>
 
-                {/* Outlook Autocomplete Dropdown */}
+                {/* Outlook Autocomplete Dropdown (Bright Light Mode Style) */}
                 {activeOwnerInputIndex === idx && (
                   <>
                     <div
@@ -304,22 +304,36 @@ export const RuleManager: React.FC<Props> = ({
                     <div
                       style={{
                         position: 'absolute',
-                        top: 'calc(100% + 4px)',
+                        top: 'calc(100% + 6px)',
                         left: 0,
                         right: 0,
-                        background: 'rgba(15, 21, 37, 0.98)',
-                        backdropFilter: 'blur(20px)',
-                        border: '1px solid rgba(99, 102, 241, 0.4)',
-                        borderRadius: 'var(--radius-sm)',
-                        boxShadow: 'var(--shadow-lg)',
+                        background: '#ffffff',
+                        backdropFilter: 'blur(16px)',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 'var(--radius-md)',
+                        boxShadow: '0 12px 32px rgba(15, 23, 42, 0.15), 0 2px 6px rgba(15, 23, 42, 0.08)',
                         zIndex: 90,
-                        maxHeight: '200px',
+                        maxHeight: '220px',
                         overflowY: 'auto',
-                        padding: '0.4rem',
+                        padding: '0.45rem',
                       }}
                     >
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
-                        Outlook 聯絡人快速選擇
+                      <div style={{
+                        fontSize: '0.725rem',
+                        color: '#475569',
+                        background: '#f8fafc',
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: '6px',
+                        fontWeight: 700,
+                        letterSpacing: '0.02em',
+                        marginBottom: '0.35rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderBottom: '1px solid #f1f5f9'
+                      }}>
+                        <span>👥 Outlook 聯絡人快速選擇</span>
+                        <span style={{ fontSize: '0.675rem', color: '#94a3b8', fontWeight: 500 }}>共 {filteredContacts.length} 筆</span>
                       </div>
                       {filteredContacts.length > 0 ? (
                         filteredContacts.map((c) => (
@@ -327,30 +341,51 @@ export const RuleManager: React.FC<Props> = ({
                             key={c.id}
                             onClick={() => handleAddOwnerTag(idx, c.email)}
                             style={{
-                              padding: '0.4rem 0.6rem',
-                              borderRadius: '4px',
+                              padding: '0.45rem 0.65rem',
+                              borderRadius: '6px',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
                               fontSize: '0.8rem',
+                              transition: 'background 0.15s ease',
+                              marginBottom: '2px'
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)')}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(79, 70, 229, 0.08)')}
                             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                           >
                             <div>
-                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</div>
-                              <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}>{c.email}</div>
+                              <div style={{ fontWeight: 600, color: '#0f172a' }}>{c.name}</div>
+                              <div style={{ fontSize: '0.725rem', color: '#475569' }}>{c.email}</div>
                             </div>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--accent-secondary)' }}>{c.department}</span>
+                            {c.department && (
+                              <span style={{
+                                fontSize: '0.7rem',
+                                color: '#4338ca',
+                                background: '#e0e7ff',
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: '4px',
+                                fontWeight: 600
+                              }}>
+                                {c.department}
+                              </span>
+                            )}
                           </div>
                         ))
                       ) : (
                         <div
                           onClick={() => handleAddOwnerTag(idx, ownerSearchQuery)}
-                          style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', color: 'var(--accent-secondary)', cursor: 'pointer' }}
+                          style={{
+                            padding: '0.5rem 0.65rem',
+                            fontSize: '0.8rem',
+                            color: '#2563eb',
+                            background: '#eff6ff',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: 600
+                          }}
                         >
-                          使用輸入的值: "{ownerSearchQuery}"
+                          + 使用自訂 Email: "{ownerSearchQuery}"
                         </div>
                       )}
                     </div>

@@ -86,8 +86,8 @@ export const HolidayManagementModal: React.FC<Props> = ({ isOpen, onClose, onHol
 
         {/* Sync Button & Status */}
         <div style={{
-          background: 'rgba(16, 185, 129, 0.12)',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
+          background: '#ecfdf5',
+          border: '1px solid #a7f3d0',
           borderRadius: 'var(--radius-md)',
           padding: '1rem 1.25rem',
           marginBottom: '1.25rem',
@@ -96,10 +96,10 @@ export const HolidayManagementModal: React.FC<Props> = ({ isOpen, onClose, onHol
           justifyContent: 'space-between',
         }}>
           <div>
-            <div style={{ fontWeight: 600, color: '#34d399', fontSize: '0.9rem', marginBottom: '0.2rem' }}>
+            <div style={{ fontWeight: 700, color: '#047857', fontSize: '0.9rem', marginBottom: '0.2rem' }}>
               DGPA 2026/2027 辦公日曆連線狀態: 正常運作中
             </div>
-            <div style={{ fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
+            <div style={{ fontSize: '0.775rem', color: '#065f46' }}>
               目前已載入 {holidays.length} 天國定假日與彈性放假日資料
             </div>
           </div>
@@ -117,13 +117,14 @@ export const HolidayManagementModal: React.FC<Props> = ({ isOpen, onClose, onHol
 
         {syncStatusMsg && (
           <div className="animate-fade-in" style={{
-            background: 'rgba(59, 130, 246, 0.15)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            color: '#60a5fa',
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            color: '#1d4ed8',
             padding: '0.65rem 1rem',
             borderRadius: 'var(--radius-sm)',
             marginBottom: '1.25rem',
             fontSize: '0.825rem',
+            fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
@@ -161,29 +162,33 @@ export const HolidayManagementModal: React.FC<Props> = ({ isOpen, onClose, onHol
             <div
               key={h.id}
               style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid var(--surface-glass-border)',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
                 borderRadius: 'var(--radius-sm)',
                 padding: '0.65rem 1rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 fontSize: '0.85rem',
+                boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+                transition: 'background 0.15s ease',
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#ffffff')}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#818cf8' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#4338ca' }}>
                   {h.date}
                 </span>
-                <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{h.name}</span>
+                <span style={{ color: '#0f172a', fontWeight: 600 }}>{h.name}</span>
               </div>
               <span style={{
-                background: h.category === 'DGPA' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(168, 85, 247, 0.15)',
-                color: h.category === 'DGPA' ? '#34d399' : '#c084fc',
+                background: h.category === 'DGPA' ? '#d1fae5' : '#f3e8ff',
+                color: h.category === 'DGPA' ? '#047857' : '#7e22ce',
                 fontSize: '0.7rem',
-                padding: '0.1rem 0.5rem',
+                padding: '0.15rem 0.5rem',
                 borderRadius: '4px',
-                fontWeight: 600,
+                fontWeight: 700,
               }}>
                 {h.category}
               </span>

@@ -81,37 +81,38 @@ export const ProjectManagerModal: React.FC<Props> = ({
                     style={{
                       padding: '1rem 1.25rem',
                       borderRadius: 'var(--radius-md)',
-                      background: isActive ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                      border: isActive ? '1px solid var(--accent-primary)' : '1px solid var(--surface-glass-border)',
+                      background: isActive ? '#eff6ff' : '#ffffff',
+                      border: isActive ? '2px solid #3b82f6' : '1px solid #e2e8f0',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       transition: 'all 0.2s ease',
+                      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.05)',
                     }}
                     className="project-item-hover"
                   >
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
                         <span style={{
-                          background: 'rgba(99, 102, 241, 0.2)',
-                          color: '#818cf8',
+                          background: '#e0e7ff',
+                          color: '#4338ca',
                           padding: '0.15rem 0.5rem',
                           borderRadius: '4px',
                           fontFamily: 'var(--font-mono)',
                           fontSize: '0.75rem',
-                          fontWeight: 600,
+                          fontWeight: 700,
                         }}>
                           {proj.code}
                         </span>
-                        <h4 style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{proj.name}</h4>
+                        <h4 style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 600 }}>{proj.name}</h4>
                       </div>
-                      <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8rem', color: '#475569' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Calendar size={14} color="#60a5fa" /> D-Day: {proj.dDay || '未設定'}
+                          <Calendar size={14} color="#2563eb" /> D-Day: {proj.dDay || '未設定'}
                         </span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Clock size={14} color="#fbbf24" /> 提前 {proj.advanceNoticeDays} 天提醒
+                          <Clock size={14} color="#d97706" /> 提前 {proj.advanceNoticeDays} 天提醒
                         </span>
                       </div>
                     </div>
