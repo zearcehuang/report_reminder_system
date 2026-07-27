@@ -4,6 +4,7 @@ export interface Project {
   name: string;
   dDay: string; // YYYY-MM-DD
   advanceNoticeDays: number;
+  advanceNoticeDaysList?: number[]; // Multi-select warning days e.g. [1, 3, 7]
   status: 'active' | 'archived' | 'draft';
   updatedAt: string;
 }
@@ -33,6 +34,7 @@ export interface ScheduleItem {
   lastNotificationSentAt?: string;
   submittedAt?: string;
   advanceNoticeDays: number;
+  advanceNoticeDaysList?: number[]; // Multi-select warning days e.g. [1, 3, 7]
 }
 
 export interface Holiday {
@@ -79,4 +81,6 @@ export interface TeamsCardPayload {
   status: string;
   webhookUrl?: string;
   customMessage?: string;
+  advanceNoticeDaysList?: number[];
+  selectedNoticeDay?: number;
 }

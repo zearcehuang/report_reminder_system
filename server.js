@@ -522,7 +522,14 @@ app.post('/api/contacts/import', upload.single('file'), (req, res) => {
 
 // Teams Notification Test & Retry
 app.post('/api/notifications/test-teams', (req, res) => {
-  const { projectCode, projectName, title, deadlineDate, noticeDate, owners, webhookUrl } = req.body;
+  const { projectCode, projectName, title, deadlineDate, dueDate, noticeDate, owners, advanceNoticeDaysList, customMessage } = req.body;
+
+  const effectiveDueDate = deadlineDate || dueDate || '2026-09-08';
+  const noticeList = Array.isArray(advanceNoticeDaysList) && advanceNoticeDaysList.length > 0
+    ? advanceNoticeDaysList.sort((a, b) => b - a)
+    : [3];
+
+  const noticeSummaryStr = noticeList.map(days => `${days}天前`).join(', ');
 
   // Build Teams Adaptive Card v1.4 Payload
   const adaptiveCard = {
@@ -547,14 +554,14 @@ app.post('/api/notifications/test-teams', (req, res) => {
               type: 'FactSet',
               facts: [
                 { title: '📌 提醒事項:', value: title || '專案里程碑報告' },
-                { title: '📅 預計繳交日:', value: deadlineDate || '2026-09-08' },
-                { title: '⏰ Teams 提醒日:', value: noticeDate || '2026-09-05' },
+                { title: '📅 預計繳交死線:', value: effectiveDueDate },
+                { title: '⏰ 多重預警頻率:', value: noticeSummaryStr },
                 { title: '👤 權責負責人:', value: (owners && owners.length > 0) ? owners.join(' | ') : '全體團隊成員' }
               ]
             },
             {
               type: 'TextBlock',
-              text: '請相關權責同仁於期限前完成報告編製與審查，確保專案進度順利進行！',
+              text: customMessage || '請相關權責同仁於死線前完成報告編製與審查，確保專案進度順利進行！',
               wrap: true,
               isSubtle: true
             }
@@ -568,7 +575,7 @@ app.post('/api/notifications/test-teams', (req, res) => {
     success: true,
     attemptsMade: 1,
     status: 'Sent',
-    message: 'MS Teams Adaptive Card 測試通知已成功模擬發送！',
+    message: `MS Teams Adaptive Card 測試通知已成功模擬發送 (設定多重預警: ${noticeSummaryStr})！`,
     payload: adaptiveCard
   });
 });

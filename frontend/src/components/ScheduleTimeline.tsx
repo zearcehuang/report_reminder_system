@@ -181,17 +181,33 @@ export const ScheduleTimeline: React.FC<Props> = ({
                     </strong>
                   </div>
 
-                  {item.wasShiftedByHoliday ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <span className="badge badge-holiday" style={{ fontSize: '0.7rem' }}>
-                        <ShieldAlert size={11} /> 因 {item.holidayName} 避開假日順延
-                      </span>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                      工作日無休假衝突
-                    </span>
-                  )}
+                  {/* Multi-Notice Dates Summary */}
+                  {(() => {
+                    const daysList = (item.advanceNoticeDaysList && item.advanceNoticeDaysList.length > 0)
+                      ? item.advanceNoticeDaysList
+                      : [item.advanceNoticeDays || 3];
+                    
+                    const noticePills = daysList.sort((a, b) => b - a).map(days => {
+                      const d = new Date(item.calculatedDate);
+                      d.setDate(d.getDate() - days);
+                      const mm = String(d.getMonth() + 1).padStart(2, '0');
+                      const dd = String(d.getDate()).padStart(2, '0');
+                      return `${days}天前(${mm}/${dd})`;
+                    });
+
+                    return (
+                      <div style={{ marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        {item.wasShiftedByHoliday && (
+                          <span className="badge badge-holiday" style={{ fontSize: '0.7rem', display: 'inline-flex', width: 'fit-content' }}>
+                            <ShieldAlert size={11} /> 因 {item.holidayName} 避開假日順延
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.725rem', color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Clock size={11} color="#2563eb" /> 預警天數: {noticePills.join(' • ')}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Status Badge */}

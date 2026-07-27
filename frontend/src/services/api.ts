@@ -16,6 +16,7 @@ const MOCK_PROJECTS: Project[] = [
     name: 'AI 客服平台建立案',
     dDay: '2026-08-01',
     advanceNoticeDays: 7,
+    advanceNoticeDaysList: [1, 3, 7],
     status: 'active',
     updatedAt: new Date().toISOString(),
   },
@@ -25,6 +26,7 @@ const MOCK_PROJECTS: Project[] = [
     name: '雲端架構移轉與資安強化案',
     dDay: '2026-09-15',
     advanceNoticeDays: 5,
+    advanceNoticeDaysList: [1, 3, 5],
     status: 'active',
     updatedAt: new Date().toISOString(),
   },
@@ -34,6 +36,7 @@ const MOCK_PROJECTS: Project[] = [
     name: '智慧醫療數據分析與視覺化系統',
     dDay: '2026-10-01',
     advanceNoticeDays: 10,
+    advanceNoticeDaysList: [3, 7, 14],
     status: 'draft',
     updatedAt: new Date().toISOString(),
   },
@@ -252,6 +255,10 @@ export function calculateAdjustedDate(dDayStr: string, offset: number, holidays:
 function generateSchedulesForProject(project: Project, rules: MilestoneRule[], holidays: Holiday[]): ScheduleItem[] {
   if (!project.dDay) return [];
 
+  const noticeList = (project.advanceNoticeDaysList && project.advanceNoticeDaysList.length > 0)
+    ? project.advanceNoticeDaysList
+    : [project.advanceNoticeDays || 3];
+
   return rules
     .filter(r => r.enabled)
     .map(rule => {
@@ -268,7 +275,8 @@ function generateSchedulesForProject(project: Project, rules: MilestoneRule[], h
         holidayName: calc.holidayName,
         owners: rule.owners,
         status: 'Pending' as const,
-        advanceNoticeDays: project.advanceNoticeDays,
+        advanceNoticeDays: project.advanceNoticeDays || 3,
+        advanceNoticeDaysList: noticeList,
       };
     });
 }
@@ -296,6 +304,7 @@ export const api = {
             name: p.name || p.projectName || '未命名專案',
             dDay: p.dDay || '2026-09-01',
             advanceNoticeDays: p.advanceNoticeDays ?? p.advanceDays ?? 3,
+            advanceNoticeDaysList: p.advanceNoticeDaysList || [p.advanceNoticeDays ?? p.advanceDays ?? 3],
             status: p.status || 'active',
             updatedAt: p.updatedAt || new Date().toISOString(),
           }));

@@ -22,7 +22,46 @@ export const TeamsCardModal: React.FC<Props> = ({
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
 
+  const initialDays = (scheduleItem?.advanceNoticeDaysList && scheduleItem.advanceNoticeDaysList.length > 0)
+    ? scheduleItem.advanceNoticeDaysList
+    : (project?.advanceNoticeDaysList && project.advanceNoticeDaysList.length > 0)
+      ? project.advanceNoticeDaysList
+      : [scheduleItem?.advanceNoticeDays || 3];
+
+  const [selectedNoticeDays, setSelectedNoticeDays] = useState<number[]>(initialDays);
+
+  React.useEffect(() => {
+    if (scheduleItem || project) {
+      const days = (scheduleItem?.advanceNoticeDaysList && scheduleItem.advanceNoticeDaysList.length > 0)
+        ? scheduleItem.advanceNoticeDaysList
+        : (project?.advanceNoticeDaysList && project.advanceNoticeDaysList.length > 0)
+          ? project.advanceNoticeDaysList
+          : [scheduleItem?.advanceNoticeDays || 3];
+      setSelectedNoticeDays(days.sort((a, b) => b - a));
+    }
+  }, [scheduleItem, project]);
+
   if (!isOpen || !scheduleItem) return null;
+
+  const presetDayOptions = [1, 3, 5, 7, 14, 30];
+
+  const handleToggleNoticeDay = (day: number) => {
+    if (selectedNoticeDays.includes(day)) {
+      if (selectedNoticeDays.length === 1) return;
+      setSelectedNoticeDays(selectedNoticeDays.filter((d) => d !== day));
+    } else {
+      setSelectedNoticeDays([...selectedNoticeDays, day].sort((a, b) => b - a));
+    }
+  };
+
+  const getNoticeDateStr = (dueDateIso: string, daysBefore: number) => {
+    if (!dueDateIso) return '';
+    const d = new Date(dueDateIso);
+    d.setDate(d.getDate() - daysBefore);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${mm}/${dd}`;
+  };
 
   const handleSendTest = async () => {
     setIsSending(true);
@@ -37,6 +76,7 @@ export const TeamsCardModal: React.FC<Props> = ({
         owners: scheduleItem.owners,
         status: scheduleItem.status,
         customMessage: customNote || '請承辦同仁於死線前完成上傳並點擊團隊審核確認！',
+        advanceNoticeDaysList: selectedNoticeDays,
       });
       setSendSuccess(res.message);
       if (onNotificationSent) onNotificationSent();
@@ -74,6 +114,50 @@ export const TeamsCardModal: React.FC<Props> = ({
           </button>
         </div>
 
+        {/* Multi-Select Warning Days Pills */}
+        <div style={{
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: 'var(--radius-md)',
+          padding: '0.85rem 1rem',
+          marginBottom: '1.25rem',
+        }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Clock size={14} color="#2563eb" /> 選擇此廣播測試包含的預警天數 (可複選):
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+            {presetDayOptions.map((day) => {
+              const isSelected = selectedNoticeDays.includes(day);
+              const datePreview = getNoticeDateStr(scheduleItem.calculatedDate, day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => handleToggleNoticeDay(day)}
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '6px',
+                    fontSize: '0.775rem',
+                    fontWeight: 600,
+                    border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                    background: isSelected ? '#eff6ff' : '#ffffff',
+                    color: isSelected ? '#1d4ed8' : '#475569',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>{day} 天前預警 ({datePreview})</span>
+                  {isSelected && <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 700 }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Live Adaptive Card Mockup */}
         <div style={{ marginBottom: '1.25rem' }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.4rem', letterSpacing: '0.04em' }}>
@@ -107,9 +191,9 @@ export const TeamsCardModal: React.FC<Props> = ({
                 </span>
                 <span style={{ fontSize: '0.8rem', color: '#605e5c' }}>[{project.code}] {project.name}</span>
               </div>
-              <span style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <Clock size={12} /> 提前 {scheduleItem.advanceNoticeDays} 天預警
-              </span>
+              <div style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Clock size={12} /> 預警頻率: {selectedNoticeDays.sort((a, b) => b - a).map((d) => `${d}天前`).join(', ')}
+              </div>
             </div>
 
             {/* Title */}
@@ -145,8 +229,10 @@ export const TeamsCardModal: React.FC<Props> = ({
               </div>
 
               <div>
-                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>當前狀態</span>
-                <span style={{ color: '#d97706', fontWeight: 600 }}>{scheduleItem.status}</span>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>預警廣播時間表</span>
+                <span style={{ color: '#2563eb', fontWeight: 600, fontSize: '0.775rem' }}>
+                  {selectedNoticeDays.map((d) => `${d}天前(${getNoticeDateStr(scheduleItem.calculatedDate, d)})`).join(' • ')}
+                </span>
               </div>
 
               <div>
