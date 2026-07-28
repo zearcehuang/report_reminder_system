@@ -173,12 +173,12 @@ export const App: React.FC = () => {
       projectId: activeProject.id,
       title: m.title,
       dayOffset: m.dayOffset,
-      owners: m.owners,
+      owners: m.owners && m.owners.length > 0 ? m.owners : ['張小明 (PM)'],
       enabled: true,
     }));
 
-    const combinedRules = [...rules, ...newRules];
-    await handleSaveRules(combinedRules);
+    // Strictly enforce listing ONLY reports present in the uploaded document (replacing mock/default rules)
+    await handleSaveRules(newRules);
   };
 
   const handleHolidayOrContactUpdated = async () => {

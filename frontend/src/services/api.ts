@@ -355,14 +355,8 @@ export const api = {
       // Fallback
     }
     projectsState.push(newProj);
-    // Duplicate default rules for new project
-    const newRules = MOCK_DEFAULT_RULES.map((r, idx) => ({
-      ...r,
-      id: `rule-${newProj.id}-${idx}`,
-      projectId: newProj.id,
-    }));
-    rulesState.push(...newRules);
-    schedulesState[newProj.id] = generateSchedulesForProject(newProj, newRules, holidaysState);
+    rulesState = rulesState.filter(r => r.projectId !== newProj.id);
+    schedulesState[newProj.id] = [];
     return newProj;
   },
 
@@ -494,7 +488,7 @@ export const api = {
       const res = await fetch(`/api/projects/${projectId}/rules`);
       if (res.ok) {
         const raw = await res.json();
-        if (Array.isArray(raw) && raw.length > 0) {
+        if (Array.isArray(raw)) {
           return raw.map((r: any) => ({
             id: r.id,
             projectId: r.projectId || projectId,
@@ -510,15 +504,6 @@ export const api = {
       // Fallback
     }
     const rules = rulesState.filter(r => r.projectId === projectId);
-    if (rules.length === 0) {
-      const initialRules = MOCK_DEFAULT_RULES.map((r, i) => ({
-        ...r,
-        id: `rule-${projectId}-${i}`,
-        projectId,
-      }));
-      rulesState.push(...initialRules);
-      return initialRules;
-    }
     return rules;
   },
 
