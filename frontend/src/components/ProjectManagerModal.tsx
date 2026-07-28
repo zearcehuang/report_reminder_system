@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { FolderPlus, X, Calendar, Clock, Check, Edit3, Briefcase } from 'lucide-react';
+import { FolderPlus, X, Calendar, Clock, Check, Briefcase, Trash2, CheckSquare, Square } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -9,6 +9,8 @@ interface Props {
   activeProject: Project;
   onSelectProject: (project: Project) => void;
   onCreateProject: (project: Partial<Project>) => Promise<void>;
+  onDeleteProject: (projectId: string) => Promise<void>;
+  onBatchDeleteProjects: (projectIds: string[]) => Promise<void>;
 }
 
 export const ProjectManagerModal: React.FC<Props> = ({
@@ -18,6 +20,8 @@ export const ProjectManagerModal: React.FC<Props> = ({
   activeProject,
   onSelectProject,
   onCreateProject,
+  onDeleteProject,
+  onBatchDeleteProjects,
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [code, setCode] = useState('');
@@ -25,8 +29,51 @@ export const ProjectManagerModal: React.FC<Props> = ({
   const [dDay, setDDay] = useState('2026-08-01');
   const [advanceNoticeDays, setAdvanceNoticeDays] = useState(7);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   if (!isOpen) return null;
+
+  const toggleSelectProject = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(item => item !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === projects.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(projects.map(p => p.id));
+    }
+  };
+
+  const handleDeleteSingle = async (proj: Project) => {
+    if (window.confirm(`確定要刪除專案「[${proj.code}] ${proj.name}」嗎？刪除後無法復原。`)) {
+      setIsDeleting(true);
+      try {
+        await onDeleteProject(proj.id);
+        setSelectedIds(selectedIds.filter(id => id !== proj.id));
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (window.confirm(`確定要刪除選取的 ${selectedIds.length} 個專案嗎？此動作無法復原。`)) {
+      setIsDeleting(true);
+      try {
+        await onBatchDeleteProjects(selectedIds);
+        setSelectedIds([]);
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
 
   const handleSubmitNewProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +104,7 @@ export const ProjectManagerModal: React.FC<Props> = ({
             </div>
             <div>
               <h2 style={{ fontSize: '1.25rem' }}>專案管理中心</h2>
-              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>切換或新增履約報告提醒專案</p>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>切換、新增或批次刪除專案</p>
             </div>
           </div>
           <button className="btn-icon" onClick={onClose}>
@@ -68,9 +115,57 @@ export const ProjectManagerModal: React.FC<Props> = ({
         {/* Project List */}
         {!isAdding ? (
           <div>
+            {/* Batch Action Toolbar */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '0.75rem',
+              padding: '0.5rem 0.75rem',
+              background: '#f8fafc',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid #e2e8f0',
+            }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none', fontWeight: 600, color: '#334155' }}>
+                <input
+                  type="checkbox"
+                  checked={projects.length > 0 && selectedIds.length === projects.length}
+                  onChange={toggleSelectAll}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                全選專案 ({selectedIds.length}/{projects.length})
+              </label>
+
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={handleBatchDelete}
+                  disabled={isDeleting}
+                  style={{
+                    background: '#ef4444',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    boxShadow: '0 1px 2px rgba(239, 68, 68, 0.3)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Trash2 size={14} /> 批次刪除 ({selectedIds.length})
+                </button>
+              )}
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '360px', overflowY: 'auto', paddingRight: '0.25rem' }}>
               {projects.map((proj) => {
                 const isActive = proj.id === activeProject.id;
+                const isSelected = selectedIds.includes(proj.id);
+
                 return (
                   <div
                     key={proj.id}
@@ -81,8 +176,8 @@ export const ProjectManagerModal: React.FC<Props> = ({
                     style={{
                       padding: '1rem 1.25rem',
                       borderRadius: 'var(--radius-md)',
-                      background: isActive ? '#eff6ff' : '#ffffff',
-                      border: isActive ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                      background: isSelected ? '#fff1f2' : (isActive ? '#eff6ff' : '#ffffff'),
+                      border: isSelected ? '2px solid #f43f5e' : (isActive ? '2px solid #3b82f6' : '1px solid #e2e8f0'),
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -92,45 +187,81 @@ export const ProjectManagerModal: React.FC<Props> = ({
                     }}
                     className="project-item-hover"
                   >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                        <span style={{
-                          background: '#e0e7ff',
-                          color: '#4338ca',
-                          padding: '0.15rem 0.5rem',
-                          borderRadius: '4px',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                        }}>
-                          {proj.code}
-                        </span>
-                        <h4 style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 600 }}>{proj.name}</h4>
-                      </div>
-                      <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8rem', color: '#475569' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Calendar size={14} color="#2563eb" /> D-Day: {proj.dDay || '未設定'}
-                        </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Clock size={14} color="#d97706" /> 提前 {proj.advanceNoticeDays} 天提醒
-                        </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelectProject(proj.id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                      />
+
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                          <span style={{
+                            background: '#e0e7ff',
+                            color: '#4338ca',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '4px',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                          }}>
+                            {proj.code}
+                          </span>
+                          <h4 style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 600 }}>{proj.name}</h4>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8rem', color: '#475569' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Calendar size={14} color="#2563eb" /> D-Day: {proj.dDay || '未設定'}
+                          </span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Clock size={14} color="#d97706" /> 提前 {proj.advanceNoticeDays} 天提醒
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {isActive && (
-                      <div style={{
-                        background: 'var(--accent-gradient)',
-                        padding: '0.35rem 0.75rem',
-                        borderRadius: 'var(--radius-full)',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                      }}>
-                        <Check size={14} /> 目前使用中
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {isActive && (
+                        <div style={{
+                          background: 'var(--accent-gradient)',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                        }}>
+                          <Check size={14} /> 目前使用中
+                        </div>
+                      )}
+
+                      <button
+                        className="btn-icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSingle(proj);
+                        }}
+                        disabled={isDeleting}
+                        title="刪除此專案"
+                        style={{
+                          color: '#ef4444',
+                          padding: '0.45rem',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid #fee2e2',
+                          background: '#fef2f2',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}

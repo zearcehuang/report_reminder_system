@@ -1,0 +1,22 @@
+# Scratch temporary folder
+scratch/
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+frontend/dist/
+
+# File uploads
+uploads/
+
+# Logs
+*.log
+data/error.log
+
+# Environment & System files
+.env
+.env.local
+.DS_Store
+Thumbs.db

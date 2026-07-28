@@ -142,16 +142,16 @@ export const DocumentPreviewModal: React.FC<Props> = ({
                       fontFamily: 'var(--font-mono)',
                       fontWeight: 700,
                     }}>
-                      D + {m.dayOffset} 天 ({m.matchedDate})
+                      D + {m.dayOffset ?? 0} 天 ({m.matchedDate || (m as any).date || '未指定死線'})
                     </span>
                   </div>
 
                   <p style={{ fontSize: '0.775rem', color: '#64748b', marginBottom: '0.4rem', fontStyle: 'italic' }}>
-                    內文依據: "{m.originalText}"
+                    內文依據: "{m.originalText || (m as any).contextSnippet || m.title || ''}"
                   </p>
 
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {m.owners.map((owner) => (
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {(m.owners || ['張小明 (PM)']).map((owner) => (
                       <span key={owner} style={{ fontSize: '0.725rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.2rem', background: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
                         <User size={12} color="#4f46e5" /> {owner}
                       </span>

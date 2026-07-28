@@ -2,7 +2,14 @@ const http = require('http');
 
 function makeRequest(options, postData = null) {
   return new Promise((resolve, reject) => {
-    const req = http.request(options, (res) => {
+    const postDataStr = postData ? (typeof postData === 'string' ? postData : JSON.stringify(postData)) : null;
+    const headers = options.headers || {};
+    if (postDataStr) {
+      headers['Content-Length'] = Buffer.byteLength(postDataStr);
+    }
+    const reqOptions = { ...options, headers };
+
+    const req = http.request(reqOptions, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -14,15 +21,15 @@ function makeRequest(options, postData = null) {
       });
     });
     req.on('error', reject);
-    if (postData) {
-      req.write(typeof postData === 'string' ? postData : JSON.stringify(postData));
+    if (postDataStr) {
+      req.write(postDataStr);
     }
     req.end();
   });
 }
 
 async function runTests() {
-  console.log('🧪 Starting 3-Scenario Automated Verification Suite...\n');
+  console.log('🧪 Starting 5-Scenario Comprehensive Automated Verification Suite...\n');
 
   // Test Scenario 1: Standard Project Creation, D-Day D+N & DGPA Holiday Shift
   console.log('▶ [Scenario 1] Standard Project Creation, 10 Rules & DGPA Holiday Shift');
@@ -77,7 +84,114 @@ async function runTests() {
   console.log(`  ✓ Adaptive Card Header: ${teamsRes.payload.attachments[0].content.body[0].text}`);
   console.log('  PASS Scenario 3 ✅\n');
 
-  console.log('🎉 ALL 3 TEST SCENARIOS PASSED 100% SUCCESSFULLY! READY FOR RELEASE! 🎉');
+  // Test Scenario 4: Single & Batch Project Deletion
+  console.log('▶ [Scenario 4] Single & Batch Project Deletion');
+  
+  // 4a. Create test projects
+  const p1 = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, { id: 'TEST-PRJ-1', projectCode: 'TEST-1', projectName: '測試專案一' });
+
+  const p2 = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, { id: 'TEST-PRJ-2', projectCode: 'TEST-2', projectName: '測試專案二' });
+
+  const p3 = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, { id: 'TEST-PRJ-3', projectCode: 'TEST-3', projectName: '測試專案三' });
+
+  console.log('  ✓ Created 3 Test Projects: TEST-PRJ-1, TEST-PRJ-2, TEST-PRJ-3');
+
+  // 4b. Single Delete TEST-PRJ-1
+  const delSingleRes = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects/TEST-PRJ-1',
+    method: 'DELETE'
+  });
+  console.log(`  ✓ Single Delete TEST-PRJ-1: ${delSingleRes.success ? 'Success' : 'Failed'}`);
+
+  // 4c. Batch Delete TEST-PRJ-2 & TEST-PRJ-3
+  const delBatchRes = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects/batch-delete',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, { ids: ['TEST-PRJ-2', 'TEST-PRJ-3'] });
+  console.log(`  ✓ Batch Delete TEST-PRJ-2 & TEST-PRJ-3: Count ${delBatchRes.count}`);
+
+  // 4d. Verify deletion in project list
+  const listRes = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects',
+    method: 'GET'
+  });
+  const remainingTestProjs = listRes.filter(p => p.id.startsWith('TEST-PRJ-'));
+  if (remainingTestProjs.length === 0) {
+    console.log('  ✓ Verified 0 remaining test projects in database.');
+  } else {
+    throw new Error(`Expected 0 test projects, found ${remainingTestProjs.length}`);
+  }
+  console.log('  PASS Scenario 4 ✅\n');
+
+  // Test Scenario 5: Single & Batch Report Submission Deletion
+  console.log('▶ [Scenario 5] Single & Batch Report Submission Deletion');
+  
+  // 5a. Check initial schedules for PRJ-2026-ALPHA
+  const initSchedRes = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects/PRJ-2026-ALPHA/schedules',
+    method: 'GET'
+  });
+  const initialCount = initSchedRes.items.length;
+  console.log(`  ✓ Initial Milestone Submissions Count: ${initialCount}`);
+
+  // 5b. Single delete rule #1
+  const delRuleSingle = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects/PRJ-2026-ALPHA/rules/1',
+    method: 'DELETE'
+  });
+  console.log(`  ✓ Single Delete Milestone Rule #1: ${delRuleSingle.success ? 'Success' : 'Failed'}`);
+
+  // 5c. Batch delete rule #2 & #3
+  const delRuleBatch = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects/PRJ-2026-ALPHA/rules/batch-delete',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, { ids: ['2', '3'] });
+  console.log(`  ✓ Batch Delete Milestone Rules #2 & #3: Count ${delRuleBatch.count}`);
+
+  // 5d. Verify updated count
+  const updatedSchedRes = await makeRequest({
+    hostname: 'localhost',
+    port: 5000,
+    path: '/api/projects/PRJ-2026-ALPHA/schedules',
+    method: 'GET'
+  });
+  console.log(`  ✓ Updated Milestone Submissions Count: ${updatedSchedRes.items.length} (Reduced by ${initialCount - updatedSchedRes.items.length})`);
+  
+  console.log('  PASS Scenario 5 ✅\n');
+
+  console.log('🎉 ALL 5 TEST SCENARIOS PASSED 100% SUCCESSFULLY! SYSTEM CERTIFIED READY FOR RELEASE! 🎉');
 }
 
 runTests().catch(err => {

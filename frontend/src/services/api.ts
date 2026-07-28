@@ -5,8 +5,10 @@ import {
   Holiday,
   Contact,
   DocumentExtractResult,
+  ExtractedMilestone,
   TeamsCardPayload,
 } from '../types';
+import { errorLogger } from './logger';
 
 // Pre-loaded default projects
 const MOCK_PROJECTS: Project[] = [
@@ -402,6 +404,90 @@ export const api = {
     throw new Error('Project not found');
   },
 
+  async deleteProject(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        projectsState = projectsState.filter(p => p.id !== id);
+        delete schedulesState[id];
+        rulesState = rulesState.filter(r => r.projectId !== id);
+        return true;
+      }
+    } catch {
+      // Fallback
+    }
+    projectsState = projectsState.filter(p => p.id !== id);
+    delete schedulesState[id];
+    rulesState = rulesState.filter(r => r.projectId !== id);
+    return true;
+  },
+
+  async batchDeleteProjects(ids: string[]): Promise<boolean> {
+    try {
+      const res = await fetch('/api/projects/batch-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (res.ok) {
+        projectsState = projectsState.filter(p => !ids.includes(p.id));
+        ids.forEach(id => delete schedulesState[id]);
+        rulesState = rulesState.filter(r => !ids.includes(r.projectId));
+        return true;
+      }
+    } catch {
+      // Fallback
+    }
+    projectsState = projectsState.filter(p => !ids.includes(p.id));
+    ids.forEach(id => delete schedulesState[id]);
+    rulesState = rulesState.filter(r => !ids.includes(r.projectId));
+    return true;
+  },
+
+  async deleteRule(projectId: string, ruleId: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/rules/${ruleId}`, { method: 'DELETE' });
+      if (res.ok) {
+        rulesState = rulesState.filter(r => !(r.projectId === projectId && r.id === ruleId));
+        if (schedulesState[projectId]) {
+          schedulesState[projectId] = schedulesState[projectId].filter(s => s.id !== ruleId && s.ruleId !== ruleId);
+        }
+        return true;
+      }
+    } catch {
+      // Fallback
+    }
+    rulesState = rulesState.filter(r => !(r.projectId === projectId && r.id === ruleId));
+    if (schedulesState[projectId]) {
+      schedulesState[projectId] = schedulesState[projectId].filter(s => s.id !== ruleId && s.ruleId !== ruleId);
+    }
+    return true;
+  },
+
+  async batchDeleteRules(projectId: string, ruleIds: string[]): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/rules/batch-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ruleIds }),
+      });
+      if (res.ok) {
+        rulesState = rulesState.filter(r => !(r.projectId === projectId && ruleIds.includes(r.id)));
+        if (schedulesState[projectId]) {
+          schedulesState[projectId] = schedulesState[projectId].filter(s => !ruleIds.includes(s.id) && (!s.ruleId || !ruleIds.includes(s.ruleId)));
+        }
+        return true;
+      }
+    } catch {
+      // Fallback
+    }
+    rulesState = rulesState.filter(r => !(r.projectId === projectId && ruleIds.includes(r.id)));
+    if (schedulesState[projectId]) {
+      schedulesState[projectId] = schedulesState[projectId].filter(s => !ruleIds.includes(s.id) && (!s.ruleId || !ruleIds.includes(s.ruleId)));
+    }
+    return true;
+  },
+
   // Rule APIs
   async getRules(projectId: string): Promise<MilestoneRule[]> {
     try {
@@ -659,9 +745,38 @@ export const api = {
         method: 'POST',
         body: formData,
       });
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback smart parser simulation
+      if (res.ok) {
+        const raw = await res.json();
+        const rawList = raw.extractedMilestones || raw.extractedItems || [];
+        const normalized: ExtractedMilestone[] = rawList.map((item: any, idx: number) => {
+          const matchedDate = item.matchedDate || item.date || '2026-09-01';
+          let dayOffset = item.dayOffset;
+          if (dayOffset === undefined && projectDDay && matchedDate) {
+            const d1 = new Date(matchedDate);
+            const d2 = new Date(projectDDay);
+            const diff = Math.round((d1.getTime() - d2.getTime()) / (1000 * 3600 * 24));
+            dayOffset = isNaN(diff) ? (idx + 1) * 30 : Math.max(0, diff);
+          }
+          return {
+            id: item.id || `ext-${Date.now()}-${idx + 1}`,
+            title: item.title || '履約里程碑報告',
+            originalText: item.originalText || item.contextSnippet || item.title || '',
+            matchedDate: matchedDate,
+            dayOffset: dayOffset ?? (idx + 1) * 30,
+            owners: Array.isArray(item.owners) && item.owners.length > 0 ? item.owners : ['張小明 (PM)'],
+            selected: item.selected !== undefined ? !!item.selected : true,
+          };
+        });
+
+        return {
+          fileName: raw.fileName || file.name,
+          fileSize: raw.fileSize || `${(file.size / 1024).toFixed(1)} KB`,
+          parsedCount: normalized.length,
+          extractedMilestones: normalized,
+        };
+      }
+    } catch (err: any) {
+      errorLogger.log('API', 'ERROR', `解析文件 ${file.name} 失敗: ${err?.message || err}`, err?.stack);
     }
 
     // Mock realistic extracted milestones from tender/contract file

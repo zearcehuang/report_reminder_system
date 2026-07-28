@@ -10,6 +10,7 @@ import { ScheduleTimeline } from './components/ScheduleTimeline';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
 import { HolidayManagementModal } from './components/HolidayManagementModal';
 import { ContactImportModal } from './components/ContactImportModal';
+import { ErrorLogModal } from './components/ErrorLogModal';
 import { Calendar, Layers, FileText, CheckCircle2, Clock, Sparkles, AlertCircle } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -23,6 +24,7 @@ export const App: React.FC = () => {
   const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [isErrorLogModalOpen, setIsErrorLogModalOpen] = useState(false);
 
   // Document preview state
   const [extractResult, setExtractResult] = useState<DocumentExtractResult | null>(null);
@@ -47,6 +49,10 @@ export const App: React.FC = () => {
         const current = projList[0];
         setActiveProject(current);
         await loadProjectDetails(current.id);
+      } else {
+        setActiveProject(null);
+        setRules([]);
+        setSchedules([]);
       }
       const contactList = await api.getContacts();
       setContacts(contactList);
@@ -75,6 +81,38 @@ export const App: React.FC = () => {
     await loadProjectDetails(created.id);
   };
 
+  const handleDeleteProject = async (projectId: string) => {
+    await api.deleteProject(projectId);
+    const updatedList = await api.getProjects();
+    setProjects(updatedList);
+    if (activeProject && activeProject.id === projectId) {
+      if (updatedList.length > 0) {
+        setActiveProject(updatedList[0]);
+        await loadProjectDetails(updatedList[0].id);
+      } else {
+        setActiveProject(null);
+        setRules([]);
+        setSchedules([]);
+      }
+    }
+  };
+
+  const handleBatchDeleteProjects = async (projectIds: string[]) => {
+    await api.batchDeleteProjects(projectIds);
+    const updatedList = await api.getProjects();
+    setProjects(updatedList);
+    if (activeProject && projectIds.includes(activeProject.id)) {
+      if (updatedList.length > 0) {
+        setActiveProject(updatedList[0]);
+        await loadProjectDetails(updatedList[0].id);
+      } else {
+        setActiveProject(null);
+        setRules([]);
+        setSchedules([]);
+      }
+    }
+  };
+
   const handleUpdateProject = async (updates: Partial<Project>) => {
     if (!activeProject) return;
     const updated = await api.updateProject(activeProject.id, updates);
@@ -90,6 +128,28 @@ export const App: React.FC = () => {
     setRules(saved);
     const s = await api.getSchedules(activeProject.id);
     setSchedules(s);
+  };
+
+  const handleDeleteSchedule = async (scheduleId: string) => {
+    if (!activeProject) return;
+    await api.deleteRule(activeProject.id, scheduleId);
+    await loadProjectDetails(activeProject.id);
+  };
+
+  const handleBatchDeleteSchedules = async (scheduleIds: string[]) => {
+    if (!activeProject) return;
+    await api.batchDeleteRules(activeProject.id, scheduleIds);
+    await loadProjectDetails(activeProject.id);
+  };
+
+  const handleDeleteRule = async (projectId: string, ruleId: string) => {
+    await api.deleteRule(projectId, ruleId);
+    await loadProjectDetails(projectId);
+  };
+
+  const handleBatchDeleteRules = async (projectId: string, ruleIds: string[]) => {
+    await api.batchDeleteRules(projectId, ruleIds);
+    await loadProjectDetails(projectId);
   };
 
   const handleToggleSubmitted = async (scheduleId: string, isCompleted: boolean) => {
@@ -130,7 +190,7 @@ export const App: React.FC = () => {
     setContacts(c);
   };
 
-  if (isLoading || !activeProject) {
+  if (isLoading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
         <div style={{ textAlign: 'center' }}>
@@ -152,193 +212,217 @@ export const App: React.FC = () => {
       {/* Navbar */}
       <Navbar
         projects={projects}
-        activeProject={activeProject}
+        activeProject={activeProject || { id: '', code: 'PRJ-NONE', name: '尚無專案', dDay: '', advanceNoticeDays: 3, status: 'active', updatedAt: '' }}
         onSelectProject={handleSelectProject}
         onOpenProjectManager={() => setIsProjectManagerOpen(true)}
         onOpenHolidayModal={() => setIsHolidayModalOpen(true)}
         onOpenContactModal={() => setIsContactModalOpen(true)}
+        onOpenErrorLogModal={() => setIsErrorLogModalOpen(true)}
       />
 
       {/* Main Content Area */}
       <main style={{ flex: 1, maxWidth: '1400px', width: '100%', margin: '0 auto', padding: '2rem 2rem 4rem' }}>
-        {/* Top Summary Banner Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
-          <div className="glass-card" style={{ padding: '1.25rem' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
-              當前開工日 (D-DAY)
-            </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Calendar size={22} color="var(--accent-secondary)" />
-              {activeProject.dDay || '尚未指定'}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-              提前 <strong style={{ color: '#fbbf24' }}>{activeProject.advanceNoticeDays} 天</strong> 自動推播通知
-            </div>
-          </div>
+        {activeProject ? (
+          <>
+            {/* Top Summary Banner Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
+              <div className="glass-card" style={{ padding: '1.25rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  當前開工日 (D-DAY)
+                </div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Calendar size={22} color="var(--accent-secondary)" />
+                  {activeProject.dDay || '尚未指定'}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                  提前 <strong style={{ color: '#fbbf24' }}>{activeProject.advanceNoticeDays} 天</strong> 自動推播通知
+                </div>
+              </div>
 
-          <div className="glass-card" style={{ padding: '1.25rem' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
-              已啟用履約報告數
+              <div className="glass-card" style={{ padding: '1.25rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  已啟用履約報告數
+                </div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Layers size={22} color="#818cf8" />
+                  {totalMilestones} 項 Slots
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                  標準里程碑規則已載入
+                </div>
+              </div>
+
+              <div className="glass-card" style={{ padding: '1.25rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  繳交進度狀態
+                </div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <CheckCircle2 size={22} color="#10b981" />
+                  {submittedCount} / {schedules.length} 已完成
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                  剩餘 <strong style={{ color: '#fbbf24' }}>{pendingCount} 項</strong> 待履約報告
+                </div>
+              </div>
+
+              <div className="glass-card" style={{ padding: '1.25rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  DGPA 休假順延調整
+                </div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#c084fc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Sparkles size={22} color="#c084fc" />
+                  {shiftedCount} 項死線已順延
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                  自動避開週休與政府辦公日曆
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Layers size={22} color="#818cf8" />
-              {totalMilestones} 項 Slots
+
+            {/* View Navigation Tabs */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--surface-glass-border)', paddingBottom: '0.5rem' }}>
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                style={{
+                  background: activeTab === 'dashboard' ? 'var(--accent-gradient)' : 'transparent',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <Layers size={17} /> 完整管控儀表板
+              </button>
+
+              <button
+                onClick={() => setActiveTab('timeline')}
+                style={{
+                  background: activeTab === 'timeline' ? 'var(--accent-gradient)' : 'transparent',
+                  border: 'none',
+                  color: activeTab === 'timeline' ? '#ffffff' : 'var(--text-secondary)',
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <Clock size={17} /> 履約死線時間軸 ({schedules.length})
+              </button>
+
+              <button
+                onClick={() => setActiveTab('rules')}
+                style={{
+                  background: activeTab === 'rules' ? 'var(--accent-gradient)' : 'transparent',
+                  border: 'none',
+                  color: activeTab === 'rules' ? '#ffffff' : 'var(--text-secondary)',
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <FileText size={17} /> 里程碑規則與負責人
+              </button>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-              預設 10 大里程碑規則已載入
-            </div>
-          </div>
 
-          <div className="glass-card" style={{ padding: '1.25rem' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
-              繳交進度狀態
-            </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <CheckCircle2 size={22} color="#10b981" />
-              {submittedCount} / {schedules.length} 已完成
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-              剩餘 <strong style={{ color: '#fbbf24' }}>{pendingCount} 項</strong> 待履約報告
-            </div>
-          </div>
+            {/* Tab contents */}
+            {activeTab === 'dashboard' && (
+              <div className="animate-fade-in">
+                {/* D-Day Control */}
+                <DDayControl
+                  project={activeProject}
+                  onUpdateProject={handleUpdateProject}
+                  milestoneCount={totalMilestones}
+                />
 
-          <div className="glass-card" style={{ padding: '1.25rem' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
-              DGPA 休假順延調整
-            </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#c084fc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Sparkles size={22} color="#c084fc" />
-              {shiftedCount} 項死線已順延
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-              自動避開週休與政府辦公日曆
-            </div>
-          </div>
-        </div>
+                {/* Document Uploader & Parser */}
+                <DocumentUploader
+                  projectDDay={activeProject.dDay}
+                  onExtractSuccess={handleDocumentExtractSuccess}
+                />
 
-        {/* View Navigation Tabs */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--surface-glass-border)', paddingBottom: '0.5rem' }}>
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            style={{
-              background: activeTab === 'dashboard' ? 'var(--accent-gradient)' : 'transparent',
-              border: 'none',
-              color: '#ffffff',
-              padding: '0.55rem 1.25rem',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <Layers size={17} /> 完整管控儀表板
-          </button>
+                {/* Schedule Timeline Section */}
+                <ScheduleTimeline
+                  project={activeProject}
+                  schedules={schedules}
+                  onToggleSubmitted={handleToggleSubmitted}
+                  onRefreshSchedules={() => loadProjectDetails(activeProject.id)}
+                  onDeleteSchedule={handleDeleteSchedule}
+                  onBatchDeleteSchedules={handleBatchDeleteSchedules}
+                />
 
-          <button
-            onClick={() => setActiveTab('timeline')}
-            style={{
-              background: activeTab === 'timeline' ? 'var(--accent-gradient)' : 'transparent',
-              border: 'none',
-              color: activeTab === 'timeline' ? '#ffffff' : 'var(--text-secondary)',
-              padding: '0.55rem 1.25rem',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <Clock size={17} /> 履約死線時間軸 ({schedules.length})
-          </button>
+                {/* Milestone Rule Manager Section */}
+                <RuleManager
+                  projectId={activeProject.id}
+                  rules={rules}
+                  contacts={contacts}
+                  onSaveRules={handleSaveRules}
+                  projectDDay={activeProject.dDay}
+                  onDeleteRule={handleDeleteRule}
+                  onBatchDeleteRules={handleBatchDeleteRules}
+                />
+              </div>
+            )}
 
-          <button
-            onClick={() => setActiveTab('rules')}
-            style={{
-              background: activeTab === 'rules' ? 'var(--accent-gradient)' : 'transparent',
-              border: 'none',
-              color: activeTab === 'rules' ? '#ffffff' : 'var(--text-secondary)',
-              padding: '0.55rem 1.25rem',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <FileText size={17} /> 里程碑規則與負責人
-          </button>
-        </div>
+            {activeTab === 'timeline' && (
+              <div className="animate-fade-in">
+                <DDayControl
+                  project={activeProject}
+                  onUpdateProject={handleUpdateProject}
+                  milestoneCount={totalMilestones}
+                />
+                <ScheduleTimeline
+                  project={activeProject}
+                  schedules={schedules}
+                  onToggleSubmitted={handleToggleSubmitted}
+                  onRefreshSchedules={() => loadProjectDetails(activeProject.id)}
+                  onDeleteSchedule={handleDeleteSchedule}
+                  onBatchDeleteSchedules={handleBatchDeleteSchedules}
+                />
+              </div>
+            )}
 
-        {/* Tab contents */}
-        {activeTab === 'dashboard' && (
-          <div className="animate-fade-in">
-            {/* D-Day Control */}
-            <DDayControl
-              project={activeProject}
-              onUpdateProject={handleUpdateProject}
-              milestoneCount={totalMilestones}
-            />
-
-            {/* Document Uploader & Parser */}
-            <DocumentUploader
-              projectDDay={activeProject.dDay}
-              onExtractSuccess={handleDocumentExtractSuccess}
-            />
-
-            {/* Schedule Timeline Section */}
-            <ScheduleTimeline
-              project={activeProject}
-              schedules={schedules}
-              onToggleSubmitted={handleToggleSubmitted}
-              onRefreshSchedules={() => loadProjectDetails(activeProject.id)}
-            />
-
-            {/* Milestone Rule Manager Section */}
-            <RuleManager
-              projectId={activeProject.id}
-              rules={rules}
-              contacts={contacts}
-              onSaveRules={handleSaveRules}
-              projectDDay={activeProject.dDay}
-            />
-          </div>
-        )}
-
-        {activeTab === 'timeline' && (
-          <div className="animate-fade-in">
-            <DDayControl
-              project={activeProject}
-              onUpdateProject={handleUpdateProject}
-              milestoneCount={totalMilestones}
-            />
-            <ScheduleTimeline
-              project={activeProject}
-              schedules={schedules}
-              onToggleSubmitted={handleToggleSubmitted}
-              onRefreshSchedules={() => loadProjectDetails(activeProject.id)}
-            />
-          </div>
-        )}
-
-        {activeTab === 'rules' && (
-          <div className="animate-fade-in">
-            <RuleManager
-              projectId={activeProject.id}
-              rules={rules}
-              contacts={contacts}
-              onSaveRules={handleSaveRules}
-              projectDDay={activeProject.dDay}
-            />
+            {activeTab === 'rules' && (
+              <div className="animate-fade-in">
+                <RuleManager
+                  projectId={activeProject.id}
+                  rules={rules}
+                  contacts={contacts}
+                  onSaveRules={handleSaveRules}
+                  projectDDay={activeProject.dDay}
+                  onDeleteRule={handleDeleteRule}
+                  onBatchDeleteRules={handleBatchDeleteRules}
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="glass-card" style={{ padding: '4rem 2rem', textAlign: 'center', marginTop: '2rem' }}>
+            <AlertCircle size={48} color="var(--accent-secondary)" style={{ margin: '0 auto 1rem' }} />
+            <h2>目前尚無可用的專案</h2>
+            <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: '1.5rem' }}>
+              請開啟專案管理中心點擊「新建專案」以開始管理履約報告提醒。
+            </p>
+            <button className="btn-primary" onClick={() => setIsProjectManagerOpen(true)}>
+              開啟專案管理中心
+            </button>
           </div>
         )}
       </main>
@@ -352,7 +436,7 @@ export const App: React.FC = () => {
         color: 'var(--text-muted)',
         background: 'rgba(9, 13, 22, 0.8)',
       }}>
-        專案報告繳交提醒系統 © 2026 | Report Submission Reminder System | ASP.NET Core & Vite React Integration
+        專案報告繳交提醒系統 © 2026 | Report Submission Reminder System
       </footer>
 
       {/* Global Modals */}
@@ -360,9 +444,11 @@ export const App: React.FC = () => {
         isOpen={isProjectManagerOpen}
         onClose={() => setIsProjectManagerOpen(false)}
         projects={projects}
-        activeProject={activeProject}
+        activeProject={activeProject || { id: '', code: '', name: '', dDay: '', advanceNoticeDays: 3, status: 'active', updatedAt: '' }}
         onSelectProject={handleSelectProject}
         onCreateProject={handleCreateProject}
+        onDeleteProject={handleDeleteProject}
+        onBatchDeleteProjects={handleBatchDeleteProjects}
       />
 
       <HolidayManagementModal
@@ -382,6 +468,11 @@ export const App: React.FC = () => {
         onClose={() => setIsPreviewModalOpen(false)}
         extractResult={extractResult}
         onConfirmImport={handleConfirmImportDocumentMilestones}
+      />
+
+      <ErrorLogModal
+        isOpen={isErrorLogModalOpen}
+        onClose={() => setIsErrorLogModalOpen(false)}
       />
     </div>
   );

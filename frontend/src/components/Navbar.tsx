@@ -1,7 +1,7 @@
 import React from 'react';
 import { Project } from '../types';
 import { ProjectSwitcher } from './ProjectSwitcher';
-import { Calendar, Users, Bell, FileSpreadsheet, ShieldCheck } from 'lucide-react';
+import { Calendar, Users, Bell, FileSpreadsheet, ShieldCheck, Terminal } from 'lucide-react';
 
 interface Props {
   projects: Project[];
@@ -10,6 +10,7 @@ interface Props {
   onOpenProjectManager: () => void;
   onOpenHolidayModal: () => void;
   onOpenContactModal: () => void;
+  onOpenErrorLogModal: () => void;
 }
 
 export const Navbar: React.FC<Props> = ({
@@ -19,6 +20,7 @@ export const Navbar: React.FC<Props> = ({
   onOpenProjectManager,
   onOpenHolidayModal,
   onOpenContactModal,
+  onOpenErrorLogModal,
 }) => {
   return (
     <header
@@ -103,6 +105,17 @@ export const Navbar: React.FC<Props> = ({
           >
             <Users size={16} color="#60a5fa" />
             <span>Outlook 通訊錄</span>
+          </button>
+
+          {/* Error Logs Console Button */}
+          <button
+            onClick={onOpenErrorLogModal}
+            className="btn-secondary"
+            style={{ fontSize: '0.825rem', padding: '0.45rem 0.85rem', borderColor: '#fca5a5', color: '#ef4444' }}
+            title="檢視前後端 Error Log 診斷控制台"
+          >
+            <Terminal size={16} color="#ef4444" />
+            <span>Error Logs</span>
           </button>
         </div>
       </div>
