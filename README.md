@@ -1,18 +1,30 @@
-# 📊 專案履約報告繳交提醒系統 (Report Submission Reminder System)
+# 📊 專案履約報告繳交提醒與 Outlook 會議發布系統 (Report Submission Reminder System)
 
-本系統為專為政府與企業軟體專案設計的 **履約里程碑與 Teams 提醒發送引擎**。系統能自動依據合約/專案開工日 (D-Day) 推算各階段報告繳交死線，自動避開行政院人事行政總處 (DGPA) 辦公日曆表之例假日與國定假日，並支援 MS Teams Adaptive Card 訊息通知發送與合約文件智能關鍵日期解析。
+本系統為專為政府與企業軟體專案設計的 **履約里程碑與 Outlook 會議預約發布引擎**。系統能自動依據合約/專案開工日 (D-Day) 推算各階段報告繳交死線，自動避開行政院人事行政總處 (DGPA) 辦公日曆表之例假日與國定假日，並支援 Microsoft Outlook 會議預約信件發布、.ics 檔案下載手動匯入 Outlook 行事曆，以及多角色專案團隊管理與標案合約文件智能關鍵日期解析。
 
 ---
 
 ## 🌟 系統主要特色
 
-- 📅 **D-Day 履約里程碑自動推算**：自訂開工日 (D-Day)，自動計算 D+14、D+30、D+60 等 10 項標準專案履約報告繳交期限。
-- 🛡️ **DGPA 國定假日與例假日自動避開**：內建行政院人事行政總處辦公日曆，當死線落於週六、週日或國定假日/補假時，自動向後順延至下一工作日。
-- 🔔 **MS Teams Adaptive Card 通知測試與發送**：支援 Adaptive Card v1.4 格式，呈現卡片式視覺通知，並可直接預覽發送 JSON。
-- 🔄 **雙向狀態管理（標記為已繳交 / 改為未繳交）**：靈活切換里程碑報告之繳交狀態，即時更新儀表板完成進度。
-- 📄 **合約與標案文件智能上傳解析**：支援 `.docx`, `.pdf`, `.xlsx`, `.csv`, `.txt` 等標案規範與工作說明書 (RFP/SOW)，自動擷取關鍵條文與日期。
-- 👥 **Outlook 團隊通訊錄與自動完成**：支援人員通訊錄管理與標籤多選（PM、架構師、QA 等權責同仁）。
-- 🎨 **明亮現代質感 UI (Bright Modern Light Theme)**：採用高閱讀性 Light Slate 色彩系統與 Glassmorphism 視覺設計。
+- 📅 **D-Day 履約里程碑自動推算與手動新增/修改**：
+  - 自訂專案開工日 (D-Day)，自動計算 D+N 各階段履約報告繳交期限。
+  - 支援手動新增履約報告、修改報告死線日期與 D+N 天數動態雙向同步。
+- 🛡️ **DGPA 國定假日與例假日自動避開**：
+  - 內建行政院人事行政總處辦公日曆，當報告死線落於週六、週日或國定假日/補假時，系統自動向後順延至下一個正常工作日。
+- 📅 **Microsoft Outlook 會議預約發布與 .ics 匯入檔中心**：
+  - 採用正統 Microsoft Outlook 會議邀請格式 (iCalendar v2.0 `ATTENDEE;RSVP=TRUE` 與 `BUSYSTATUS:BUSY`)。
+  - **行事曆直連發送**：提供直連 Outlook 網頁版行事曆 (`https://outlook.office.com/calendar/0/deeplink/compose`)，點擊傳送後會議將自動呈現於全員 Outlook 行事曆中。
+  - **.ics 會議檔下載**：支援一鍵下載具名 `.ics` 會議預約檔，雙擊即可開啟 Microsoft Outlook 桌面版自動匯入日曆。
+  - **發布寄件者身份登入驗證**：發布前需完成寄件者帳號驗證登入，確保會議發布資訊之真實性與安全性。
+- 👥 **多角色專案團隊名冊與一鍵多選**：
+  - 支援新增與編輯多角色專案負責人團隊名冊（包含 PM 專案經理、業務 Sales、SA 系統分析師、PG 開發工程師、QA 測試經理、架構師等）。
+  - 在履約里程碑規則與報告編輯視窗中，提供專案團隊角色「一鍵多選/全選」快速挑選功能。
+- 🔄 **雙向狀態管理（標記為已繳交 / 改為未繳交）**：
+  - 靈活切換里程碑報告之繳交狀態，即時更新儀表板與時間軸進度。
+- 📄 **合約與標案文件智能上傳解析**：
+  - 支援 `.docx`, `.pdf`, `.xlsx`, `.csv`, `.txt` 等標案規範與工作說明書 (RFP/SOW)，自動擷取關鍵條文與日期。
+- 🎨 **明亮現代質感 UI (Bright Modern Light Theme)**：
+  - 採用高閱讀性 Light Slate 色彩系統、Glassmorphism 視覺設計與極致微動畫。
 
 ---
 
@@ -117,13 +129,13 @@ npm start
 report_reminder_system/
 ├── backend/                  # 後端模組與預留功能
 ├── data/                     # JSON 資料持久化儲存目錄
-│   ├── projects.json         # 履約專案與里程碑規則資料
+│   ├── projects.json         # 履約專案、團隊成員與里程碑規則資料
 │   ├── holidays.json         # DGPA 政府辦公日曆資料
 │   └── contacts.json         # 專案團隊通訊錄
 ├── frontend/                 # 前端 React TypeScript 專案
 │   ├── dist/                 # 前端打包產出目錄 (Build 後生成)
 │   ├── src/
-│   │   ├── components/       # 介面元件 (Timeline, RuleManager, DDayControl, Navbar...)
+│   │   ├── components/       # 介面元件 (ScheduleTimeline, OutlookMeetingModal, RuleManager, DDayControl, AddReportModal...)
 │   │   ├── services/         # API 通訊與歸一化服務 (api.ts)
 │   │   ├── types.ts          # TypeScript 型別定義
 │   │   ├── App.tsx           # 主頁面元件

@@ -1,21 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { Project } from '../types';
-import { Calendar, Clock, Sparkles, Save, Info } from 'lucide-react';
+import { Project, ProjectOwner, Contact } from '../types';
+import { Calendar, Clock, Sparkles, Save, Info, User, Mail, Plus, Trash2, Users, Tag, ShieldCheck, Edit2, Check, X } from 'lucide-react';
 
 interface Props {
   project: Project;
   onUpdateProject: (updates: Partial<Project>) => Promise<void>;
   milestoneCount: number;
+  contacts?: Contact[];
 }
 
-export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milestoneCount }) => {
+const PRESET_ROLES = [
+  'PM (專案經理)',
+  '業務 (Sales)',
+  'SA (系統分析師)',
+  'PG (開發工程師)',
+  'QA (測試經理)',
+  '架構師',
+  '通訊窗口',
+  '自訂角色',
+];
+
+export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milestoneCount, contacts = [] }) => {
   const [dDay, setDDay] = useState(project.dDay);
-  const [noticeDaysList, setNoticeDaysList] = useState<number[]>(
-    project.advanceNoticeDaysList && project.advanceNoticeDaysList.length > 0
-      ? project.advanceNoticeDaysList
-      : [project.advanceNoticeDays || 3]
-  );
+  const [projectOwners, setProjectOwners] = useState<ProjectOwner[]>([]);
+  const [noticeDaysList, setNoticeDaysList] = useState<number[]>([]);
   const [customDayInput, setCustomDayInput] = useState('');
+
+  // Add Owner States
+  const [selectedRole, setSelectedRole] = useState('PM (專案經理)');
+  const [customRole, setCustomRole] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
+
+  // Inline Edit Owner States
+  const [editingOwnerId, setEditingOwnerId] = useState<string | null>(null);
+  const [editRole, setEditRole] = useState<string>('PM (專案經理)');
+  const [editCustomRole, setEditCustomRole] = useState<string>('');
+  const [editName, setEditName] = useState<string>('');
+  const [editEmail, setEditEmail] = useState<string>('');
+
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -26,6 +50,24 @@ export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milesto
         ? project.advanceNoticeDaysList
         : [project.advanceNoticeDays || 3]
     );
+
+    if (project.projectOwners && project.projectOwners.length > 0) {
+      setProjectOwners(project.projectOwners);
+    } else if (project.ownerEmail || project.ownerName) {
+      setProjectOwners([
+        {
+          id: 'po-default',
+          role: 'PM (專案經理)',
+          name: project.ownerName || '專案經理',
+          email: project.ownerEmail || 'alex.chang@company.com',
+        },
+      ]);
+    } else {
+      setProjectOwners([
+        { id: 'po-1', role: 'PM (專案經理)', name: '張小明', email: 'alex.chang@company.com' },
+        { id: 'po-2', role: '業務 (Sales)', name: '陳經理', email: 'sales.chen@company.com' },
+      ]);
+    }
   }, [project]);
 
   const presetOptions = [1, 3, 5, 7, 14, 30];
@@ -50,12 +92,105 @@ export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milesto
     }
   };
 
+  const handleAddOwner = async () => {
+    if (!ownerEmail.trim()) return;
+    const finalRole = selectedRole === '自訂角色' ? customRole.trim() || '專案成員' : selectedRole;
+    const finalName = ownerName.trim() || ownerEmail.split('@')[0];
+
+    const newOwner: ProjectOwner = {
+      id: `po-${Date.now()}`,
+      role: finalRole,
+      name: finalName,
+      email: ownerEmail.trim(),
+    };
+
+    const updated = [...projectOwners, newOwner];
+    setProjectOwners(updated);
+    setOwnerName('');
+    setOwnerEmail('');
+    setCustomRole('');
+    setContactSearch('');
+
+    // Immediately persist to backend & App state
+    const primaryPM = updated.find((o) => o.role.includes('PM')) || updated[0];
+    await onUpdateProject({
+      projectOwners: updated,
+      ownerName: primaryPM ? `${primaryPM.name} (${primaryPM.role})` : undefined,
+      ownerEmail: primaryPM ? primaryPM.email : undefined,
+    });
+  };
+
+  const handleStartEditOwner = (owner: ProjectOwner) => {
+    const id = owner.id || owner.email;
+    setEditingOwnerId(id);
+    if (PRESET_ROLES.includes(owner.role)) {
+      setEditRole(owner.role);
+      setEditCustomRole('');
+    } else {
+      setEditRole('自訂角色');
+      setEditCustomRole(owner.role);
+    }
+    setEditName(owner.name);
+    setEditEmail(owner.email);
+  };
+
+  const handleSaveEditOwner = async (targetId: string) => {
+    if (!editName.trim() || !editEmail.trim()) return;
+    const finalRole = editRole === '自訂角色' ? editCustomRole.trim() || '專案成員' : editRole;
+
+    const updated = projectOwners.map((po) => {
+      const matchKey = po.id || po.email;
+      if (matchKey === targetId) {
+        return {
+          ...po,
+          role: finalRole,
+          name: editName.trim(),
+          email: editEmail.trim(),
+        };
+      }
+      return po;
+    });
+
+    setProjectOwners(updated);
+    setEditingOwnerId(null);
+
+    // Immediately persist to backend & App state
+    const primaryPM = updated.find((o) => o.role.includes('PM')) || updated[0];
+    await onUpdateProject({
+      projectOwners: updated,
+      ownerName: primaryPM ? `${primaryPM.name} (${primaryPM.role})` : undefined,
+      ownerEmail: primaryPM ? primaryPM.email : undefined,
+    });
+  };
+
+  const handleCancelEditOwner = () => {
+    setEditingOwnerId(null);
+  };
+
+  const handleRemoveOwner = async (id?: string, email?: string) => {
+    const updated = projectOwners.filter((o) => (id ? o.id !== id : o.email !== email));
+    setProjectOwners(updated);
+
+    // Immediately persist to backend & App state
+    const primaryPM = updated.find((o) => o.role.includes('PM')) || updated[0];
+    await onUpdateProject({
+      projectOwners: updated,
+      ownerName: primaryPM ? `${primaryPM.name} (${primaryPM.role})` : undefined,
+      ownerEmail: primaryPM ? primaryPM.email : undefined,
+    });
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
       const maxDay = noticeDaysList.length > 0 ? Math.max(...noticeDaysList) : 3;
+      const primaryPM = projectOwners.find((o) => o.role.includes('PM')) || projectOwners[0];
+
       await onUpdateProject({
         dDay,
+        ownerName: primaryPM ? `${primaryPM.name} (${primaryPM.role})` : undefined,
+        ownerEmail: primaryPM ? primaryPM.email : undefined,
+        projectOwners,
         advanceNoticeDays: maxDay,
         advanceNoticeDaysList: noticeDaysList.sort((a, b) => b - a),
       });
@@ -75,6 +210,7 @@ export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milesto
 
   return (
     <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '1.75rem' }}>
+      {/* Section Title */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <div style={{
@@ -84,12 +220,12 @@ export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milesto
             borderRadius: 'var(--radius-sm)',
             display: 'flex',
           }}>
-            <Calendar size={20} />
+            <Users size={20} />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem' }}>專案啟動日 (D-Day) 與多重提前預警設定</h3>
+            <h3 style={{ fontSize: '1.1rem' }}>專案團隊角色 (業務/PM/SA等)、開工日 (D-Day) 與多重預警設定</h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              設定合約/專案開工日起算點 (D-Day)，可多選 Teams / Email 於死線前 1 天、3 天、7 天多重發送預警
+              可新增、修改姓名與 Email、維護多位專案負責人角色 (業務、PM、SA、QA 等)
             </p>
           </div>
         </div>
@@ -107,26 +243,300 @@ export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milesto
             alignItems: 'center',
             gap: '0.4rem',
           }}>
-            <Sparkles size={16} /> 已套用多重預警 ({noticeDaysList.join(', ')} 天前)！
+            <Sparkles size={16} /> 已套用專案團隊與死線設定！
           </div>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.8fr auto', gap: '1.25rem', alignItems: 'flex-end' }}>
+      {/* Multi-Role Project Owners Manager Box */}
+      <div style={{
+        background: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: 'var(--radius-md)',
+        padding: '1.1rem 1.25rem',
+        marginBottom: '1.25rem',
+      }}>
+        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '0.65rem' }}>
+          👥 專案負責人團隊名冊 (點擊鉛筆圖示可隨時修改成員姓名或 Email)
+        </label>
+
+        {/* Existing Project Owners Pills */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+          {projectOwners.length > 0 ? (
+            projectOwners.map((owner) => {
+              const targetKey = owner.id || owner.email;
+              const isEditing = editingOwnerId === targetKey;
+
+              if (isEditing) {
+                return (
+                  <div
+                    key={targetKey}
+                    style={{
+                      background: '#ffffff',
+                      border: '2px solid #6366f1',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '0.5rem 0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.15)',
+                    }}
+                  >
+                    {/* Role Dropdown */}
+                    <select
+                      className="input-glass"
+                      value={editRole}
+                      onChange={(e) => setEditRole(e.target.value)}
+                      style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', fontWeight: 600 }}
+                    >
+                      {PRESET_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+
+                    {editRole === '自訂角色' && (
+                      <input
+                        type="text"
+                        className="input-glass"
+                        placeholder="自訂角色"
+                        value={editCustomRole}
+                        onChange={(e) => setEditCustomRole(e.target.value)}
+                        style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', width: '90px' }}
+                      />
+                    )}
+
+                    {/* Edit Name */}
+                    <input
+                      type="text"
+                      className="input-glass"
+                      placeholder="姓名"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      style={{ fontSize: '0.775rem', padding: '0.2rem 0.4rem', width: '90px', fontWeight: 600 }}
+                    />
+
+                    {/* Edit Email */}
+                    <input
+                      type="email"
+                      className="input-glass"
+                      placeholder="Email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      style={{ fontSize: '0.775rem', padding: '0.2rem 0.4rem', width: '160px' }}
+                    />
+
+                    {/* Save / Cancel Buttons */}
+                    <button
+                      type="button"
+                      onClick={() => handleSaveEditOwner(targetKey)}
+                      style={{
+                        background: '#22c55e',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '0.25rem 0.45rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.2rem',
+                        fontSize: '0.725rem',
+                        fontWeight: 700,
+                      }}
+                      title="儲存變更"
+                    >
+                      <Check size={13} /> 儲存
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelEditOwner}
+                      style={{
+                        background: '#f1f5f9',
+                        color: '#64748b',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        padding: '0.25rem 0.4rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      title="取消"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={targetKey}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.4rem 0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
+                  }}
+                >
+                  <span style={{
+                    background: owner.role.includes('業務') ? '#fef3c7' : (owner.role.includes('PM') ? '#dbeafe' : '#f3e8ff'),
+                    color: owner.role.includes('業務') ? '#b45309' : (owner.role.includes('PM') ? '#1d4ed8' : '#6b21a8'),
+                    fontSize: '0.725rem',
+                    fontWeight: 700,
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: '4px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.2rem',
+                  }}>
+                    <Tag size={11} /> {owner.role}
+                  </span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>
+                    {owner.name}
+                  </span>
+                  <span style={{ fontSize: '0.775rem', color: '#64748b' }}>
+                    &lt;{owner.email}&gt;
+                  </span>
+
+                  {/* Edit Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleStartEditOwner(owner)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#6366f1',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '0.15rem',
+                      borderRadius: '4px',
+                      marginLeft: '0.2rem',
+                    }}
+                    title="修改此成員姓名/Email/角色"
+                  >
+                    <Edit2 size={13} color="#4f46e5" />
+                  </button>
+
+                  {/* Delete Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveOwner(owner.id, owner.email)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '0.15rem',
+                      borderRadius: '4px',
+                    }}
+                    title="移除此負責人"
+                  >
+                    <Trash2 size={14} color="#ef4444" />
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
+              目前尚未新增任何專案負責人，請利用下方表單新增成員。
+            </div>
+          )}
+        </div>
+
+        {/* Add New Owner Input Group */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.5fr auto', gap: '0.65rem', alignItems: 'center' }}>
+          {/* Role Selector */}
+          <div>
+            <select
+              className="input-glass"
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              style={{ fontSize: '0.825rem', padding: '0.45rem 0.65rem', fontWeight: 600 }}
+            >
+              {PRESET_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            {selectedRole === '自訂角色' && (
+              <input
+                type="text"
+                className="input-glass"
+                placeholder="輸入角色 (如: 專案總監)"
+                value={customRole}
+                onChange={(e) => setCustomRole(e.target.value)}
+                style={{ marginTop: '0.35rem', fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+              />
+            )}
+          </div>
+
+          {/* Owner Name */}
+          <div>
+            <input
+              type="text"
+              className="input-glass"
+              placeholder="姓名 (如: 張小明)"
+              value={ownerName}
+              onChange={(e) => setOwnerName(e.target.value)}
+              style={{ fontSize: '0.825rem', padding: '0.45rem 0.65rem' }}
+            />
+          </div>
+
+          {/* Owner Email with Contact Search */}
+          <div style={{ position: 'relative' }}>
+            <input
+              type="email"
+              className="input-glass"
+              placeholder="Email (如: alex.chang@company.com)"
+              value={ownerEmail}
+              onChange={(e) => setOwnerEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddOwner();
+                }
+              }}
+              style={{ fontSize: '0.825rem', padding: '0.45rem 0.65rem' }}
+            />
+          </div>
+
+          {/* Add Button */}
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleAddOwner}
+            style={{ padding: '0.45rem 0.9rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <Plus size={16} /> 新增負責人
+          </button>
+        </div>
+      </div>
+
+      {/* D-Day & Warning Settings Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr auto', gap: '1.25rem', alignItems: 'flex-end' }}>
         {/* D-Day Date Input */}
         <div>
           <label style={{ display: 'block', fontSize: '0.825rem', color: 'var(--text-secondary)', marginBottom: '0.4rem', fontWeight: 600 }}>
-            專案開工/啟動日期 (D-Day Baseline)
+            📅 專案開工日 (D-Day Baseline)
           </label>
           <div style={{ position: 'relative' }}>
             <input
               type="date"
               className="input-glass"
-              style={{ paddingLeft: '2.5rem', fontSize: '0.95rem', fontWeight: 600 }}
+              style={{ paddingLeft: '2.2rem', fontSize: '0.85rem', fontWeight: 600 }}
               value={dDay}
               onChange={(e) => setDDay(e.target.value)}
             />
-            <Calendar size={18} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <Calendar size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           </div>
           {dDay && (
             <div style={{ fontSize: '0.75rem', color: '#4338ca', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}>
@@ -138,7 +548,7 @@ export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milesto
         {/* Multi-Select Advance Warning Days */}
         <div>
           <label style={{ display: 'block', fontSize: '0.825rem', color: 'var(--text-secondary)', marginBottom: '0.4rem', fontWeight: 600 }}>
-            🔔 Teams / Email 提前發送頻率 (可複選多個預警天數)
+            📅 Outlook 會議預警提醒天數 (可複選)
           </label>
           
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
@@ -223,10 +633,11 @@ export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milesto
             style={{ padding: '0.65rem 1.5rem', height: '42px' }}
           >
             <Save size={18} />
-            <span>{isSaving ? '儲存中...' : '套用預警與死線'}</span>
+            <span>{isSaving ? '儲存中...' : '套用專案團隊與死線'}</span>
           </button>
         </div>
       </div>
     </div>
   );
 };
+

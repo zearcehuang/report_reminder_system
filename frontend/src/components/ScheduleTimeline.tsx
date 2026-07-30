@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ScheduleItem, Project } from '../types';
-import { Clock, CheckCircle2, AlertTriangle, Send, Calendar, User, Search, ShieldAlert, Sparkles, Filter, RotateCcw, Trash2 } from 'lucide-react';
-import { TeamsCardModal } from './TeamsCardModal';
+import { Clock, CheckCircle2, AlertTriangle, Send, Calendar, User, Search, ShieldAlert, Sparkles, Filter, RotateCcw, Trash2, FilePlus, Edit3 } from 'lucide-react';
+import { OutlookMeetingModal } from './OutlookMeetingModal';
 
 interface Props {
   project: Project;
@@ -10,6 +10,8 @@ interface Props {
   onRefreshSchedules: () => void;
   onDeleteSchedule?: (scheduleId: string) => Promise<void>;
   onBatchDeleteSchedules?: (scheduleIds: string[]) => Promise<void>;
+  onOpenAddReportModal?: () => void;
+  onEditScheduleDate?: (scheduleItem: ScheduleItem) => void;
 }
 
 export const ScheduleTimeline: React.FC<Props> = ({
@@ -19,10 +21,12 @@ export const ScheduleTimeline: React.FC<Props> = ({
   onRefreshSchedules,
   onDeleteSchedule,
   onBatchDeleteSchedules,
+  onOpenAddReportModal,
+  onEditScheduleDate,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [selectedScheduleForTeams, setSelectedScheduleForTeams] = useState<ScheduleItem | null>(null);
+  const [selectedScheduleForOutlook, setSelectedScheduleForOutlook] = useState<ScheduleItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -100,7 +104,18 @@ export const ScheduleTimeline: React.FC<Props> = ({
 
         {/* Search & Filter */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ position: 'relative', width: '220px' }}>
+          {onOpenAddReportModal && (
+            <button
+              onClick={onOpenAddReportModal}
+              className="btn-primary"
+              style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              title="手動新增履約報告"
+            >
+              <FilePlus size={15} /> 新增履約報告
+            </button>
+          )}
+
+          <div style={{ position: 'relative', width: '200px' }}>
             <input
               type="text"
               className="input-glass"
@@ -286,6 +301,24 @@ export const ScheduleTimeline: React.FC<Props> = ({
                       <strong style={{ fontSize: '1rem', color: item.wasShiftedByHoliday ? '#9333ea' : 'var(--text-primary)' }}>
                         {item.calculatedDate}
                       </strong>
+                      {onEditScheduleDate && (
+                        <button
+                          type="button"
+                          onClick={() => onEditScheduleDate(item)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#4f46e5',
+                            cursor: 'pointer',
+                            padding: '0.1rem 0.25rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                          }}
+                          title="修改此履約報告死線日期"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                      )}
                     </div>
 
                     {/* Multi-Notice Dates Summary */}
@@ -329,6 +362,17 @@ export const ScheduleTimeline: React.FC<Props> = ({
 
                   {/* Actions */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {onEditScheduleDate && (
+                      <button
+                        className="btn-secondary"
+                        onClick={() => onEditScheduleDate(item)}
+                        style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem', borderColor: '#c7d2fe', color: '#3730a3', background: '#e0e7ff' }}
+                        title="修改此履約報告的死線日期與詳細內容"
+                      >
+                        <Edit3 size={14} /> 修改日期
+                      </button>
+                    )}
+
                     {item.status === 'Submitted' ? (
                       <button
                         className="btn-secondary"
@@ -357,11 +401,11 @@ export const ScheduleTimeline: React.FC<Props> = ({
 
                     <button
                       className="btn-secondary"
-                      onClick={() => setSelectedScheduleForTeams(item)}
-                      style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', background: 'rgba(91, 95, 199, 0.15)', borderColor: 'rgba(91, 95, 199, 0.3)' }}
-                      title="預覽 MS Teams 卡片並進行發送測試"
+                      onClick={() => setSelectedScheduleForOutlook(item)}
+                      style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', background: 'rgba(0, 120, 212, 0.12)', borderColor: 'rgba(0, 120, 212, 0.3)', color: '#005a9e' }}
+                      title="發布 Outlook 會議預約信件與下載 .ics 會議檔"
                     >
-                      <Send size={15} color="#818cf8" /> Teams 測試發送
+                      <Calendar size={15} color="#0078d4" /> 發布 Outlook 會議
                     </button>
 
                     <button
@@ -393,11 +437,11 @@ export const ScheduleTimeline: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Teams Adaptive Card Modal */}
-      <TeamsCardModal
-        isOpen={!!selectedScheduleForTeams}
-        onClose={() => setSelectedScheduleForTeams(null)}
-        scheduleItem={selectedScheduleForTeams}
+      {/* Outlook Meeting Publisher & Download Modal */}
+      <OutlookMeetingModal
+        isOpen={!!selectedScheduleForOutlook}
+        onClose={() => setSelectedScheduleForOutlook(null)}
+        scheduleItem={selectedScheduleForOutlook}
         project={project}
         onNotificationSent={() => {
           onRefreshSchedules();

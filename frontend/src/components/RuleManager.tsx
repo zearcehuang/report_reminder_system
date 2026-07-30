@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { MilestoneRule, Contact } from '../types';
-import { Layers, Plus, Trash2, Check, User, Mail, Sparkles, ChevronRight, ToggleLeft, ToggleRight, X } from 'lucide-react';
+import { MilestoneRule, Contact, Project } from '../types';
+import { Layers, Plus, Trash2, Check, User, Mail, Sparkles, ChevronRight, ToggleLeft, ToggleRight, X, FilePlus, Edit3, Calendar, Users } from 'lucide-react';
 
 interface Props {
   projectId: string;
@@ -10,6 +10,9 @@ interface Props {
   projectDDay: string;
   onDeleteRule?: (projectId: string, ruleId: string) => Promise<void>;
   onBatchDeleteRules?: (projectId: string, ruleIds: string[]) => Promise<void>;
+  onOpenAddReportModal?: () => void;
+  onEditRule?: (rule: MilestoneRule) => void;
+  activeProject?: Project | null;
 }
 
 export const RuleManager: React.FC<Props> = ({
@@ -20,10 +23,14 @@ export const RuleManager: React.FC<Props> = ({
   projectDDay,
   onDeleteRule,
   onBatchDeleteRules,
+  onOpenAddReportModal,
+  onEditRule,
+  activeProject,
 }) => {
   const [localRules, setLocalRules] = useState<MilestoneRule[]>(rules);
   const [isSaving, setIsSaving] = useState(false);
   const [activeOwnerInputIndex, setActiveOwnerInputIndex] = useState<number | null>(null);
+  const [openTeamPickerIndex, setOpenTeamPickerIndex] = useState<number | null>(null);
   const [ownerSearchQuery, setOwnerSearchQuery] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
@@ -41,13 +48,48 @@ export const RuleManager: React.FC<Props> = ({
     setHasChanges(true);
   };
 
+  const getSelectableOwners = () => {
+    if (activeProject && activeProject.projectOwners && activeProject.projectOwners.length > 0) {
+      return activeProject.projectOwners;
+    }
+    if (contacts && contacts.length > 0) {
+      return contacts.map((c) => ({
+        id: c.id,
+        role: c.department || '團隊成員',
+        name: c.name,
+        email: c.email,
+      }));
+    }
+    return [
+      { id: 'po-1', role: 'PM (專案經理)', name: '張小明', email: 'alex.chang@company.com' },
+      { id: 'po-2', role: '業務 (Sales)', name: '陳經理', email: 'sales.chen@company.com' },
+      { id: 'po-3', role: 'SA (系統分析師)', name: '李大華', email: 'david.lee@company.com' },
+      { id: 'po-4', role: 'QA (測試經理)', name: '陳美玲', email: 'meiling.chen@company.com' },
+    ];
+  };
+
+  const selectableTeam = getSelectableOwners();
+
   const handleAddRule = () => {
+    let defaultOwners = ['alex.chang@company.com'];
+
+    if (activeProject && activeProject.projectOwners && activeProject.projectOwners.length > 0) {
+      defaultOwners = activeProject.projectOwners.map((po) => `[${po.role}] ${po.name} (${po.email})`);
+    } else if (activeProject && (activeProject.ownerEmail || activeProject.ownerName)) {
+      const ownerStr = activeProject.ownerName
+        ? `${activeProject.ownerName} (${activeProject.ownerEmail || ''})`
+        : activeProject.ownerEmail!;
+      defaultOwners = [ownerStr];
+    } else if (contacts.length > 0) {
+      defaultOwners = [`${contacts[0].name} (${contacts[0].email})`];
+    }
+
     const newRule: MilestoneRule = {
       id: `rule-${Date.now()}`,
       projectId,
       title: '自訂履約里程碑報告',
       dayOffset: 100,
-      owners: ['pm.alex@company.com'],
+      owners: defaultOwners,
       enabled: true,
     };
     setLocalRules([...localRules, newRule]);
@@ -148,8 +190,17 @@ export const RuleManager: React.FC<Props> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {onOpenAddReportModal && (
+            <button
+              className="btn-primary"
+              onClick={onOpenAddReportModal}
+              style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <FilePlus size={16} /> 手動新增履約報告
+            </button>
+          )}
           <button className="btn-secondary" onClick={handleAddRule} style={{ fontSize: '0.85rem' }}>
-            <Plus size={16} /> 新增里程碑
+            <Plus size={16} /> 快速新增空白列
           </button>
           <button
             className="btn-primary"
@@ -288,9 +339,9 @@ export const RuleManager: React.FC<Props> = ({
                 />
               </div>
 
-              {/* Day Offset (D+N) Input */}
+              {/* Day Offset (D+N) & Date Picker Input */}
               <div>
-                <div style={{ position: 'relative' }}>
+                <div style={{ position: 'relative', marginBottom: '0.25rem' }}>
                   <span style={{
                     position: 'absolute',
                     left: '0.65rem',
@@ -312,14 +363,43 @@ export const RuleManager: React.FC<Props> = ({
                     value={rule.dayOffset}
                     onChange={(e) => handleUpdateRule(idx, { dayOffset: Number(e.target.value) })}
                     disabled={!rule.enabled}
+                    title="修改 D+N 相對天數"
                   />
                 </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                  預計死線: {datePreview}
+                {/* Date Picker Input */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                  <input
+                    type="date"
+                    value={datePreview}
+                    disabled={!rule.enabled || !projectDDay}
+                    onChange={(e) => {
+                      const chosenDateStr = e.target.value;
+                      if (chosenDateStr && projectDDay) {
+                        const d1 = new Date(chosenDateStr);
+                        const d2 = new Date(projectDDay);
+                        const diffDays = Math.round((d1.getTime() - d2.getTime()) / (1000 * 3600 * 24));
+                        if (!isNaN(diffDays)) {
+                          handleUpdateRule(idx, { dayOffset: Math.max(0, diffDays) });
+                        }
+                      }
+                    }}
+                    style={{
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      padding: '0.15rem 0.35rem',
+                      fontSize: '0.725rem',
+                      color: '#334155',
+                      fontWeight: 600,
+                      background: '#f8fafc',
+                      width: '100%',
+                      cursor: 'pointer',
+                    }}
+                    title="點擊日曆圖示即可直接選取死線日期 (自動連動 D+N)"
+                  />
                 </div>
               </div>
 
-              {/* Multi-Owner Tag Input with Outlook Autocomplete */}
+              {/* Multi-Owner Tag Input with Outlook Autocomplete & Team Role Picker */}
               <div style={{ position: 'relative' }}>
                 <div style={{
                   display: 'flex',
@@ -364,7 +444,7 @@ export const RuleManager: React.FC<Props> = ({
                   {rule.enabled && (
                     <input
                       type="text"
-                      placeholder={rule.owners.length === 0 ? '輸入負責人姓名或 Email (支援 Outlook 選單)...' : '+ 新增...'}
+                      placeholder={rule.owners.length === 0 ? '手動 Email 或搜尋通訊錄...' : '+ 新增...'}
                       value={activeOwnerInputIndex === idx ? ownerSearchQuery : ''}
                       onFocus={() => {
                         setActiveOwnerInputIndex(idx);
@@ -383,11 +463,119 @@ export const RuleManager: React.FC<Props> = ({
                         background: 'transparent',
                         fontSize: '0.8rem',
                         flex: 1,
-                        minWidth: '120px',
+                        minWidth: '100px',
                       }}
                     />
                   )}
                 </div>
+
+                {/* Quick Team Member Role Multi-Select Box */}
+                {rule.enabled && (
+                  <div style={{
+                    marginTop: '0.4rem',
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.45rem 0.6rem',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Users size={12} color="#4f46e5" /> 一鍵勾選專案團隊角色 (可多選):
+                      </span>
+                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allTeam = selectableTeam.map((po) => `[${po.role}] ${po.name} (${po.email})`);
+                            handleUpdateRule(idx, { owners: Array.from(new Set([...rule.owners, ...allTeam])) });
+                          }}
+                          style={{
+                            background: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            color: '#1d4ed8',
+                            fontSize: '0.675rem',
+                            fontWeight: 700,
+                            padding: '0.1rem 0.35rem',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          + 全選團隊
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateRule(idx, { owners: [] })}
+                          style={{
+                            background: '#ffffff',
+                            border: '1px solid #cbd5e1',
+                            color: '#64748b',
+                            fontSize: '0.675rem',
+                            fontWeight: 600,
+                            padding: '0.1rem 0.35rem',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          清空
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                      {selectableTeam.map((po) => {
+                        const ownerStr = `[${po.role}] ${po.name} (${po.email})`;
+                        const isSelected = rule.owners.includes(ownerStr) || rule.owners.some((o) => o.includes(po.email));
+
+                        return (
+                          <button
+                            key={po.id || po.email}
+                            type="button"
+                            onClick={() => {
+                              let nextOwners: string[];
+                              if (isSelected) {
+                                nextOwners = rule.owners.filter((o) => !o.includes(po.email) && o !== ownerStr);
+                              } else {
+                                nextOwners = [...rule.owners, ownerStr];
+                              }
+                              handleUpdateRule(idx, { owners: nextOwners });
+                            }}
+                            style={{
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '5px',
+                              fontSize: '0.725rem',
+                              fontWeight: 600,
+                              border: isSelected ? '1.5px solid #4f46e5' : '1px solid #cbd5e1',
+                              background: isSelected ? '#e0e7ff' : '#ffffff',
+                              color: isSelected ? '#3730a3' : '#475569',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.2rem',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <span style={{
+                              fontSize: '0.65rem',
+                              padding: '0.05rem 0.25rem',
+                              borderRadius: '3px',
+                              background: isSelected ? '#c7d2fe' : '#f1f5f9',
+                              color: isSelected ? '#312e81' : '#475569',
+                              fontWeight: 700,
+                            }}>
+                              {po.role}
+                            </span>
+                            {po.name}
+                            {isSelected ? (
+                              <span style={{ color: '#4338ca', fontWeight: 800 }}>✓</span>
+                            ) : (
+                              <span style={{ color: '#94a3b8' }}>+</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Autocomplete Dropdown */}
                 {activeOwnerInputIndex === idx && ownerSearchQuery.trim().length > 0 && (
@@ -436,16 +624,30 @@ export const RuleManager: React.FC<Props> = ({
                 )}
               </div>
 
-              {/* Action */}
-              <button
-                type="button"
-                className="btn-icon"
-                onClick={() => handleRemoveRule(idx)}
-                style={{ color: '#ef4444', border: '1px solid #fee2e2', background: '#fef2f2', padding: '0.45rem', borderRadius: 'var(--radius-sm)' }}
-                title="刪除此里程碑規則"
-              >
-                <Trash2 size={16} />
-              </button>
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                {onEditRule && (
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={() => onEditRule(rule)}
+                    style={{ color: '#4f46e5', border: '1px solid #c7d2fe', background: '#e0e7ff', padding: '0.45rem', borderRadius: 'var(--radius-sm)' }}
+                    title="編輯履約報告名稱與死線日期"
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={() => handleRemoveRule(idx)}
+                  style={{ color: '#ef4444', border: '1px solid #fee2e2', background: '#fef2f2', padding: '0.45rem', borderRadius: 'var(--radius-sm)' }}
+                  title="刪除此里程碑規則"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
           );
         })}

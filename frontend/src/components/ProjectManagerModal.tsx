@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { FolderPlus, X, Calendar, Clock, Check, Briefcase, Trash2, CheckSquare, Square } from 'lucide-react';
+import { FolderPlus, X, Calendar, Clock, Check, Briefcase, Trash2, CheckSquare, Square, User, Mail } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -26,6 +26,8 @@ export const ProjectManagerModal: React.FC<Props> = ({
   const [isAdding, setIsAdding] = useState(false);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
   const [dDay, setDDay] = useState('2026-08-01');
   const [advanceNoticeDays, setAdvanceNoticeDays] = useState(7);
   const [submitting, setSubmitting] = useState(false);
@@ -80,9 +82,18 @@ export const ProjectManagerModal: React.FC<Props> = ({
     if (!code || !name) return;
     setSubmitting(true);
     try {
-      await onCreateProject({ code, name, dDay, advanceNoticeDays });
+      await onCreateProject({
+        code,
+        name,
+        dDay,
+        advanceNoticeDays,
+        ownerName: ownerName.trim() || undefined,
+        ownerEmail: ownerEmail.trim() || undefined,
+      });
       setCode('');
       setName('');
+      setOwnerName('');
+      setOwnerEmail('');
       setIsAdding(false);
     } finally {
       setSubmitting(false);
@@ -91,7 +102,7 @@ export const ProjectManagerModal: React.FC<Props> = ({
 
   return (
     <div className="modal-overlay">
-      <div className="glass-modal width-full" style={{ maxWidth: '640px', padding: '1.75rem' }}>
+      <div className="glass-modal width-full" style={{ maxWidth: '680px', padding: '1.75rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
@@ -214,12 +225,35 @@ export const ProjectManagerModal: React.FC<Props> = ({
                           </span>
                           <h4 style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 600 }}>{proj.name}</h4>
                         </div>
-                        <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8rem', color: '#475569' }}>
+                        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: '#475569', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {proj.projectOwners && proj.projectOwners.length > 0 ? (
+                            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>團隊:</span>
+                              {proj.projectOwners.map((po, idx) => (
+                                <span
+                                  key={idx}
+                                  style={{
+                                    background: po.role.includes('業務') ? '#fef3c7' : (po.role.includes('PM') ? '#dbeafe' : '#f3e8ff'),
+                                    color: po.role.includes('業務') ? '#b45309' : (po.role.includes('PM') ? '#1d4ed8' : '#6b21a8'),
+                                    fontSize: '0.725rem',
+                                    fontWeight: 700,
+                                    padding: '0.1rem 0.4rem',
+                                    borderRadius: '4px',
+                                  }}
+                                >
+                                  [{po.role}] {po.name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            proj.ownerEmail && (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#3730a3', fontWeight: 600 }}>
+                                <User size={13} color="#4f46e5" /> 負責人: {proj.ownerName ? `${proj.ownerName} (${proj.ownerEmail})` : proj.ownerEmail}
+                              </span>
+                            )
+                          )}
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                             <Calendar size={14} color="#2563eb" /> D-Day: {proj.dDay || '未設定'}
-                          </span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <Clock size={14} color="#d97706" /> 提前 {proj.advanceNoticeDays} 天提醒
                           </span>
                         </div>
                       </div>
@@ -275,38 +309,69 @@ export const ProjectManagerModal: React.FC<Props> = ({
           </div>
         ) : (
           <form onSubmit={handleSubmitNewProject} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
-                專案編號 (Project Code)
-              </label>
-              <input
-                type="text"
-                className="input-glass"
-                placeholder="例如: PRJ-004"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  專案編號 (Project Code)
+                </label>
+                <input
+                  type="text"
+                  className="input-glass"
+                  placeholder="例如: PRJ-004"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  專案名稱 (Project Name)
+                </label>
+                <input
+                  type="text"
+                  className="input-glass"
+                  placeholder="例如: 全社整合通訊平台擴充案"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
-                專案名稱 (Project Name)
-              </label>
-              <input
-                type="text"
-                className="input-glass"
-                placeholder="例如: 全社整合通訊平台擴充案"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
+            {/* Owner Name & Owner Email */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  👤 專案負責人姓名 (選填)
+                </label>
+                <input
+                  type="text"
+                  className="input-glass"
+                  placeholder="例如: 張小明 (PM)"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  ✉️ 負責人 Email (新增報告時預設自動帶入)
+                </label>
+                <input
+                  type="email"
+                  className="input-glass"
+                  placeholder="例如: alex.chang@company.com"
+                  value={ownerEmail}
+                  onChange={(e) => setOwnerEmail(e.target.value)}
+                />
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
-                  專案啟動日 (D-Day)
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  📅 專案啟動日 (D-Day)
                 </label>
                 <input
                   type="date"
@@ -317,8 +382,8 @@ export const ProjectManagerModal: React.FC<Props> = ({
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
-                  提前提醒天數
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  🔔 提前提醒天數
                 </label>
                 <input
                   type="number"

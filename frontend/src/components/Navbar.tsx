@@ -1,7 +1,7 @@
 import React from 'react';
 import { Project } from '../types';
 import { ProjectSwitcher } from './ProjectSwitcher';
-import { Calendar, Users, Bell, FileSpreadsheet, ShieldCheck, Terminal } from 'lucide-react';
+import { Calendar, Users, Bell, FileSpreadsheet, ShieldCheck, Terminal, FilePlus } from 'lucide-react';
 
 interface Props {
   projects: Project[];
@@ -11,6 +11,7 @@ interface Props {
   onOpenHolidayModal: () => void;
   onOpenContactModal: () => void;
   onOpenErrorLogModal: () => void;
+  onOpenAddReportModal: () => void;
 }
 
 export const Navbar: React.FC<Props> = ({
@@ -21,6 +22,7 @@ export const Navbar: React.FC<Props> = ({
   onOpenHolidayModal,
   onOpenContactModal,
   onOpenErrorLogModal,
+  onOpenAddReportModal,
 }) => {
   return (
     <header
@@ -57,7 +59,7 @@ export const Navbar: React.FC<Props> = ({
                 <span className="gradient-text">專案履約報告</span> 繳交提醒系統
               </h1>
               <p style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                Automated Milestone & Teams Reminder Engine
+                Automated Milestone & Outlook Meeting Publisher
               </p>
             </div>
           </div>
@@ -75,6 +77,17 @@ export const Navbar: React.FC<Props> = ({
 
         {/* Right action controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          {/* Manual Add Report Button */}
+          <button
+            onClick={onOpenAddReportModal}
+            className="btn-primary"
+            style={{ fontSize: '0.825rem', padding: '0.45rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            title="手動新增專案履約報告與死線提醒"
+          >
+            <FilePlus size={16} />
+            <span>手動新增履約報告</span>
+          </button>
+
           {/* DGPA Holiday Status Button */}
           <button
             onClick={onOpenHolidayModal}

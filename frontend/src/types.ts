@@ -1,3 +1,10 @@
+export interface ProjectOwner {
+  id?: string;
+  role: string; // e.g. 'PM', '業務', 'SA', 'PG', 'QA', '架構師', '窗口'
+  name: string;
+  email: string;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -5,6 +12,10 @@ export interface Project {
   dDay: string; // YYYY-MM-DD
   advanceNoticeDays: number;
   advanceNoticeDaysList?: number[]; // Multi-select warning days e.g. [1, 3, 7]
+  ownerName?: string; // 專案負責人姓名 (Legacy single owner)
+  ownerEmail?: string; // 專案負責人 Email (Legacy single email)
+  projectOwners?: ProjectOwner[]; // 多角色專案負責人團隊
+  teamsWebhookUrl?: string; // MS Teams Webhook URL
   status: 'active' | 'archived' | 'draft';
   updatedAt: string;
 }
@@ -71,7 +82,14 @@ export interface DocumentExtractResult {
   extractedMilestones: ExtractedMilestone[];
 }
 
-export interface TeamsCardPayload {
+export interface SenderAccount {
+  email: string;
+  name: string;
+  token: string;
+  loggedInAt: string;
+}
+
+export interface OutlookMeetingPayload {
   scheduleId: string;
   title: string;
   projectName: string;
@@ -79,8 +97,12 @@ export interface TeamsCardPayload {
   dueDate: string;
   owners: string[];
   status: string;
-  webhookUrl?: string;
   customMessage?: string;
   advanceNoticeDaysList?: number[];
   selectedNoticeDay?: number;
+  senderEmail?: string;
+  senderName?: string;
+  senderAuthToken?: string;
 }
+
+export type TeamsCardPayload = OutlookMeetingPayload;

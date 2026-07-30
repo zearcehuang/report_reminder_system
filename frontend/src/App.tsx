@@ -11,6 +11,8 @@ import { ProjectManagerModal } from './components/ProjectManagerModal';
 import { HolidayManagementModal } from './components/HolidayManagementModal';
 import { ContactImportModal } from './components/ContactImportModal';
 import { ErrorLogModal } from './components/ErrorLogModal';
+import { AddReportModal } from './components/AddReportModal';
+import { EditReportModal } from './components/EditReportModal';
 import { Calendar, Layers, FileText, CheckCircle2, Clock, Sparkles, AlertCircle } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -25,6 +27,9 @@ export const App: React.FC = () => {
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isErrorLogModalOpen, setIsErrorLogModalOpen] = useState(false);
+  const [isAddReportModalOpen, setIsAddReportModalOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<MilestoneRule | null>(null);
+  const [isEditReportModalOpen, setIsEditReportModalOpen] = useState(false);
 
   // Document preview state
   const [extractResult, setExtractResult] = useState<DocumentExtractResult | null>(null);
@@ -117,6 +122,7 @@ export const App: React.FC = () => {
     if (!activeProject) return;
     const updated = await api.updateProject(activeProject.id, updates);
     setActiveProject(updated);
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     // Reload schedules because D-Day changed
     const s = await api.getSchedules(updated.id);
     setSchedules(s);
@@ -181,6 +187,49 @@ export const App: React.FC = () => {
     await handleSaveRules(newRules);
   };
 
+  const handleAddReport = async (newRule: MilestoneRule) => {
+    if (!activeProject) return;
+    const updated = [...rules, newRule];
+    await handleSaveRules(updated);
+  };
+
+  const handleEditRule = (rule: MilestoneRule) => {
+    setEditingRule(rule);
+    setIsEditReportModalOpen(true);
+  };
+
+  const handleEditScheduleDate = (scheduleItem: ScheduleItem) => {
+    const matchedRule = rules.find(r => r.id === scheduleItem.ruleId || r.id === scheduleItem.id);
+    if (matchedRule) {
+      setEditingRule(matchedRule);
+    } else {
+      setEditingRule({
+        id: scheduleItem.ruleId || scheduleItem.id,
+        projectId: scheduleItem.projectId || activeProject?.id || '',
+        title: scheduleItem.title,
+        dayOffset: scheduleItem.dDayOffset,
+        owners: scheduleItem.owners || [],
+        enabled: true,
+      });
+    }
+    setIsEditReportModalOpen(true);
+  };
+
+  const handleSaveEditedRule = async (updatedRule: MilestoneRule) => {
+    if (!activeProject) return;
+    const existingIdx = rules.findIndex(r => r.id === updatedRule.id);
+    let nextRules: MilestoneRule[];
+    if (existingIdx !== -1) {
+      nextRules = [...rules];
+      nextRules[existingIdx] = updatedRule;
+    } else {
+      nextRules = [...rules, updatedRule];
+    }
+    await handleSaveRules(nextRules);
+    setIsEditReportModalOpen(false);
+    setEditingRule(null);
+  };
+
   const handleHolidayOrContactUpdated = async () => {
     if (activeProject) {
       const s = await api.getSchedules(activeProject.id);
@@ -218,6 +267,7 @@ export const App: React.FC = () => {
         onOpenHolidayModal={() => setIsHolidayModalOpen(true)}
         onOpenContactModal={() => setIsContactModalOpen(true)}
         onOpenErrorLogModal={() => setIsErrorLogModalOpen(true)}
+        onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -350,6 +400,7 @@ export const App: React.FC = () => {
                   project={activeProject}
                   onUpdateProject={handleUpdateProject}
                   milestoneCount={totalMilestones}
+                  contacts={contacts}
                 />
 
                 {/* Document Uploader & Parser */}
@@ -366,6 +417,8 @@ export const App: React.FC = () => {
                   onRefreshSchedules={() => loadProjectDetails(activeProject.id)}
                   onDeleteSchedule={handleDeleteSchedule}
                   onBatchDeleteSchedules={handleBatchDeleteSchedules}
+                  onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
+                  onEditScheduleDate={handleEditScheduleDate}
                 />
 
                 {/* Milestone Rule Manager Section */}
@@ -377,6 +430,9 @@ export const App: React.FC = () => {
                   projectDDay={activeProject.dDay}
                   onDeleteRule={handleDeleteRule}
                   onBatchDeleteRules={handleBatchDeleteRules}
+                  onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
+                  onEditRule={handleEditRule}
+                  activeProject={activeProject}
                 />
               </div>
             )}
@@ -387,6 +443,7 @@ export const App: React.FC = () => {
                   project={activeProject}
                   onUpdateProject={handleUpdateProject}
                   milestoneCount={totalMilestones}
+                  contacts={contacts}
                 />
                 <ScheduleTimeline
                   project={activeProject}
@@ -395,6 +452,8 @@ export const App: React.FC = () => {
                   onRefreshSchedules={() => loadProjectDetails(activeProject.id)}
                   onDeleteSchedule={handleDeleteSchedule}
                   onBatchDeleteSchedules={handleBatchDeleteSchedules}
+                  onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
+                  onEditScheduleDate={handleEditScheduleDate}
                 />
               </div>
             )}
@@ -409,6 +468,9 @@ export const App: React.FC = () => {
                   projectDDay={activeProject.dDay}
                   onDeleteRule={handleDeleteRule}
                   onBatchDeleteRules={handleBatchDeleteRules}
+                  onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
+                  onEditRule={handleEditRule}
+                  activeProject={activeProject}
                 />
               </div>
             )}
@@ -473,6 +535,26 @@ export const App: React.FC = () => {
       <ErrorLogModal
         isOpen={isErrorLogModalOpen}
         onClose={() => setIsErrorLogModalOpen(false)}
+      />
+
+      <AddReportModal
+        isOpen={isAddReportModalOpen}
+        onClose={() => setIsAddReportModalOpen(false)}
+        activeProject={activeProject}
+        contacts={contacts}
+        onAddReport={handleAddReport}
+      />
+
+      <EditReportModal
+        isOpen={isEditReportModalOpen}
+        onClose={() => {
+          setIsEditReportModalOpen(false);
+          setEditingRule(null);
+        }}
+        activeProject={activeProject}
+        rule={editingRule}
+        contacts={contacts}
+        onSaveRule={handleSaveEditedRule}
       />
     </div>
   );

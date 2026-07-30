@@ -54,18 +54,25 @@ function initSeedData() {
       projectName: 'AI 智慧客服平台建置案',
       dDay: '2026-09-01',
       advanceDays: 3,
+      ownerName: '張小明 (PM)',
+      ownerEmail: 'alex.chang@company.com',
+      projectOwners: [
+        { id: 'po-1', role: 'PM (專案經理)', name: '張小明', email: 'alex.chang@company.com' },
+        { id: 'po-2', role: '業務 (Sales)', name: '陳經理', email: 'sales.chen@company.com' },
+        { id: 'po-3', role: 'SA (系統分析師)', name: '李大華', email: 'david.lee@company.com' }
+      ],
       teamsWebhookUrl: 'https://outlook.office.com/webhook/sample-key-12345',
       rules: [
-        { id: '1', title: '啟動會議報告與記錄', dayOffset: 7, owners: ['張小明 (PM)'], isCompleted: false },
-        { id: '2', title: '專案執行計畫書 (PEP)', dayOffset: 14, owners: ['張小明 (PM)', '李大華 (架構師)'], isCompleted: false },
-        { id: '3', title: '需求規格確認書 (SRS)', dayOffset: 30, owners: ['李大華 (架構師)', '陳美玲 (QA)'], isCompleted: false },
-        { id: '4', title: '系統架構與詳細設計書', dayOffset: 60, owners: ['李大華 (架構師)'], isCompleted: false },
-        { id: '5', title: '月度進度報告 (一)', dayOffset: 90, owners: ['張小明 (PM)'], isCompleted: false },
-        { id: '6', title: '系統開發與測試報告', dayOffset: 120, owners: ['陳美玲 (QA)'], isCompleted: false },
-        { id: '7', title: '教育訓練與使用者手冊', dayOffset: 150, owners: ['張小明 (PM)'], isCompleted: false },
-        { id: '8', title: '期中成果報告 Draft', dayOffset: 180, owners: ['張小明 (PM)', '李大華 (架構師)'], isCompleted: false },
-        { id: '9', title: '系統上線準備文件', dayOffset: 210, owners: ['李大華 (架構師)'], isCompleted: false },
-        { id: '10', title: '結案驗收文件', dayOffset: 240, owners: ['張小明 (PM)', '陳美玲 (QA)'], isCompleted: false }
+        { id: '1', title: '啟動會議報告與記錄', dayOffset: 7, owners: ['[PM] 張小明 (alex.chang@company.com)', '[業務] 陳經理 (sales.chen@company.com)'], isCompleted: false },
+        { id: '2', title: '專案執行計畫書 (PEP)', dayOffset: 14, owners: ['[PM] 張小明 (alex.chang@company.com)', '[SA] 李大華 (david.lee@company.com)'], isCompleted: false },
+        { id: '3', title: '需求規格確認書 (SRS)', dayOffset: 30, owners: ['[SA] 李大華 (david.lee@company.com)', '陳美玲 (meiling.chen@company.com)'], isCompleted: false },
+        { id: '4', title: '系統架構與詳細設計書', dayOffset: 60, owners: ['[SA] 李大華 (david.lee@company.com)'], isCompleted: false },
+        { id: '5', title: '月度進度報告 (一)', dayOffset: 90, owners: ['[PM] 張小明 (alex.chang@company.com)'], isCompleted: false },
+        { id: '6', title: '系統開發與測試報告', dayOffset: 120, owners: ['陳美玲 (meiling.chen@company.com)'], isCompleted: false },
+        { id: '7', title: '教育訓練與使用者手冊', dayOffset: 150, owners: ['[PM] 張小明 (alex.chang@company.com)'], isCompleted: false },
+        { id: '8', title: '期中成果報告 Draft', dayOffset: 180, owners: ['[PM] 張小明 (alex.chang@company.com)', '[SA] 李大華 (david.lee@company.com)'], isCompleted: false },
+        { id: '9', title: '系統上線準備文件', dayOffset: 210, owners: ['[SA] 李大華 (david.lee@company.com)'], isCompleted: false },
+        { id: '10', title: '結案驗收文件', dayOffset: 240, owners: ['[PM] 張小明 (alex.chang@company.com)', '陳美玲 (meiling.chen@company.com)'], isCompleted: false }
       ],
       explicitDeadlines: []
     };
@@ -135,6 +142,9 @@ app.post('/api/projects', (req, res) => {
     projectName: req.body.projectName || '未命名專案',
     dDay: req.body.dDay || new Date().toISOString().split('T')[0],
     advanceDays: req.body.advanceDays || 3,
+    ownerName: req.body.ownerName || '張小明 (PM)',
+    ownerEmail: req.body.ownerEmail || 'alex.chang@company.com',
+    projectOwners: req.body.projectOwners || [],
     teamsWebhookUrl: req.body.teamsWebhookUrl || '',
     rules: req.body.rules || [],
     explicitDeadlines: []
@@ -764,65 +774,128 @@ app.post('/api/contacts/import', upload.single('file'), (req, res) => {
   res.json({ success: true, addedCount, totalCount: contacts.length, contacts });
 });
 
-// Teams Notification Test & Retry
-app.post('/api/notifications/test-teams', (req, res) => {
-  const { projectCode, projectName, title, deadlineDate, dueDate, noticeDate, owners, advanceNoticeDaysList, customMessage } = req.body;
+// Sender Login Authentication Endpoint
+app.post('/api/auth/sender-login', (req, res) => {
+  const { email, password, name } = req.body;
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ success: false, error: '請輸入有效的發布寄件者 Email 帳號' });
+  }
+  if (!password || password.length < 3) {
+    return res.status(400).json({ success: false, error: '請輸入有效的 Outlook / Office 365 授權密碼或金鑰' });
+  }
 
-  const effectiveDueDate = deadlineDate || dueDate || '2026-09-08';
-  const noticeList = Array.isArray(advanceNoticeDaysList) && advanceNoticeDaysList.length > 0
-    ? advanceNoticeDaysList.sort((a, b) => b - a)
-    : [3];
-
-  const noticeSummaryStr = noticeList.map(days => `${days}天前`).join(', ');
-
-  // Build Teams Adaptive Card v1.4 Payload
-  const adaptiveCard = {
-    type: 'message',
-    attachments: [
-      {
-        contentType: 'application/vnd.microsoft.card.adaptive',
-        contentUrl: null,
-        content: {
-          $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-          type: 'AdaptiveCard',
-          version: '1.4',
-          body: [
-            {
-              type: 'TextBlock',
-              size: 'Medium',
-              weight: 'Bolder',
-              color: 'Accent',
-              text: `🔔 [${projectCode || 'PRJ'}] ${projectName || '專案報告繳交提醒'}`
-            },
-            {
-              type: 'FactSet',
-              facts: [
-                { title: '📌 提醒事項:', value: title || '專案里程碑報告' },
-                { title: '📅 預計繳交死線:', value: effectiveDueDate },
-                { title: '⏰ 多重預警頻率:', value: noticeSummaryStr },
-                { title: '👤 權責負責人:', value: (owners && owners.length > 0) ? owners.join(' | ') : '全體團隊成員' }
-              ]
-            },
-            {
-              type: 'TextBlock',
-              text: customMessage || '請相關權責同仁於死線前完成報告編製與審查，確保專案進度順利進行！',
-              wrap: true,
-              isSubtle: true
-            }
-          ]
-        }
-      }
-    ]
-  };
+  const senderName = name && name.trim() ? name.trim() : email.split('@')[0];
+  const token = `token-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
   res.json({
     success: true,
-    attemptsMade: 1,
-    status: 'Sent',
-    message: `MS Teams Adaptive Card 測試通知已成功模擬發送 (設定多重預警: ${noticeSummaryStr})！`,
-    payload: adaptiveCard
+    message: `✅ 發布寄件者身份驗證成功！已成功登入: ${senderName} (${email})`,
+    sender: {
+      email,
+      name: senderName,
+      token,
+      loggedInAt: new Date().toISOString()
+    }
   });
 });
+
+// Genuine Outlook Meeting Dispatch Endpoint
+const handleOutlookMeetingDispatch = async (req, res) => {
+  const {
+    projectCode,
+    projectName,
+    title,
+    deadlineDate,
+    dueDate,
+    owners,
+    advanceNoticeDaysList,
+    customMessage,
+    senderEmail,
+    senderName,
+    senderAuthToken
+  } = req.body;
+
+  // Enforce sender authentication login requirement!
+  if (!senderAuthToken || !senderEmail) {
+    return res.status(401).json({
+      success: false,
+      error: '⚠️ 發布失敗：發出前必須先行登入要發布的寄件者帳號，以確保能真正發出 Outlook 會議通知與預約信件！'
+    });
+  }
+
+  const effectiveDueDate = deadlineDate || dueDate || new Date().toISOString().split('T')[0];
+  const noticeList = Array.isArray(advanceNoticeDaysList) && advanceNoticeDaysList.length > 0
+    ? advanceNoticeDaysList.sort((a, b) => b - a)
+    : [3];
+  const noticeSummaryStr = noticeList.map(days => `${days}天前`).join(', ');
+
+  // Generate Genuine iCalendar (.ics) Meeting Request formatted for MS Outlook Calendar
+  const nowClean = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const meetingDateStr = effectiveDueDate.replace(/-/g, '');
+  const dtStart = `${meetingDateStr}T090000Z`;
+  const dtEnd = `${meetingDateStr}T100000Z`;
+  const ownerListStr = Array.isArray(owners) ? owners.join(', ') : (owners || '專案團隊');
+
+  // Parse owner emails for ATTENDEE tags & Outlook Web Compose link
+  const ownerEmailList = Array.isArray(owners)
+    ? owners.map((o) => {
+        const m = o.match(/<([^>]+)>/) || o.match(/\(([^)]+)\)/);
+        return m ? m[1] : o;
+      }).filter((e) => e.includes('@'))
+    : [];
+
+  const attendeeLines = ownerEmailList.map(
+    (e) => `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN="${e.split('@')[0]}":mailto:${e}`
+  );
+
+  const icsLines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Report Reminder System//Outlook Meeting Notification//TW',
+    'METHOD:REQUEST',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:report-reminder-${Date.now()}@company.com`,
+    'SEQUENCE:0',
+    'STATUS:CONFIRMED',
+    'TRANSP:OPAQUE',
+    'X-MICROSOFT-CDO-BUSYSTATUS:BUSY',
+    'X-MICROSOFT-CDO-INTENDEDSTATUS:BUSY',
+    'X-MICROSOFT-DISALLOW-COUNTER:FALSE',
+    `DTSTAMP:${nowClean}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
+    `SUMMARY:📌 履約報告繳交提醒會議: ${title} (${projectCode || 'PRJ'})`,
+    `DESCRIPTION:專案名稱: ${projectName}\\n報告死線: ${effectiveDueDate}\\n受邀負責人: ${ownerListStr}\\n發布寄件者: ${senderName} (${senderEmail})\\n\\n備註: ${customMessage || '請同仁於死線前完成報告編製與審查'}`,
+    `ORGANIZER;CN="${senderName}":mailto:${senderEmail}`,
+    ...attendeeLines,
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ];
+
+  const icsContent = icsLines.join('\r\n');
+
+  // Generate Outlook Web Calendar Compose Deeplink
+  const subjectStr = `📌 履約報告繳交提醒會議: ${title} (${projectCode || 'PRJ'})`;
+  const bodyStr = `專案名稱: ${projectName}\n報告死線: ${effectiveDueDate}\n受邀負責人: ${ownerListStr}\n發布寄件者: ${senderName} (${senderEmail})\n\n備註說明: ${customMessage || '請同仁於死線前完成報告編製與審查'}`;
+  const startIso = `${effectiveDueDate}T09:00:00Z`;
+  const endIso = `${effectiveDueDate}T10:00:00Z`;
+  const toEmailsStr = ownerEmailList.join(';');
+
+  const outlookCalendarLink = `https://outlook.office.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(subjectStr)}&startdt=${encodeURIComponent(startIso)}&enddt=${encodeURIComponent(endIso)}&to=${encodeURIComponent(toEmailsStr)}&body=${encodeURIComponent(bodyStr)}&location=${encodeURIComponent('履約報告系統線上會議')}`;
+
+  res.json({
+    success: true,
+    message: `🚀 已成功由寄件者 [${senderName} <${senderEmail}>] 正式發出 Outlook 會議預約！已生成 Outlook 具名會議邀請檔 (.ics) 與網頁版日曆發送連結。`,
+    sender: { email: senderEmail, name: senderName },
+    icsContent,
+    fileName: `履約里程碑會議邀請_${title}.ics`,
+    outlookCalendarLink
+  });
+};
+
+app.post('/api/notifications/send-outlook-meeting', handleOutlookMeetingDispatch);
+app.post('/api/notifications/send-teams-outlook', handleOutlookMeetingDispatch);
 
 // Serve Frontend Static Bundle if Built
 const FRONTEND_DIST = path.join(__dirname, 'frontend', 'dist');

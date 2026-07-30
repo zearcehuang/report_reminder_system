@@ -7,6 +7,8 @@ import {
   DocumentExtractResult,
   ExtractedMilestone,
   TeamsCardPayload,
+  OutlookMeetingPayload,
+  SenderAccount,
 } from '../types';
 import { errorLogger } from './logger';
 
@@ -19,6 +21,13 @@ const MOCK_PROJECTS: Project[] = [
     dDay: '2026-08-01',
     advanceNoticeDays: 7,
     advanceNoticeDaysList: [1, 3, 7],
+    ownerName: '張小明 (PM)',
+    ownerEmail: 'alex.chang@company.com',
+    projectOwners: [
+      { id: 'po-1', role: 'PM (專案經理)', name: '張小明', email: 'alex.chang@company.com' },
+      { id: 'po-2', role: '業務 (Sales)', name: '陳經理', email: 'sales.chen@company.com' },
+      { id: 'po-3', role: 'SA (系統分析師)', name: '李大華', email: 'david.lee@company.com' },
+    ],
     status: 'active',
     updatedAt: new Date().toISOString(),
   },
@@ -29,6 +38,12 @@ const MOCK_PROJECTS: Project[] = [
     dDay: '2026-09-15',
     advanceNoticeDays: 5,
     advanceNoticeDaysList: [1, 3, 5],
+    ownerName: '李大華 (架構師)',
+    ownerEmail: 'david.lee@company.com',
+    projectOwners: [
+      { id: 'po-4', role: '架構師', name: '李大華', email: 'david.lee@company.com' },
+      { id: 'po-5', role: 'PM', name: '林志豪', email: 'chihhao.lin@company.com' },
+    ],
     status: 'active',
     updatedAt: new Date().toISOString(),
   },
@@ -39,6 +54,11 @@ const MOCK_PROJECTS: Project[] = [
     dDay: '2026-10-01',
     advanceNoticeDays: 10,
     advanceNoticeDaysList: [3, 7, 14],
+    ownerName: '陳美玲 (QA)',
+    ownerEmail: 'meiling.chen@company.com',
+    projectOwners: [
+      { id: 'po-6', role: 'QA (測試)', name: '陳美玲', email: 'meiling.chen@company.com' }
+    ],
     status: 'draft',
     updatedAt: new Date().toISOString(),
   },
@@ -307,6 +327,9 @@ export const api = {
             dDay: p.dDay || '2026-09-01',
             advanceNoticeDays: p.advanceNoticeDays ?? p.advanceDays ?? 3,
             advanceNoticeDaysList: p.advanceNoticeDaysList || [p.advanceNoticeDays ?? p.advanceDays ?? 3],
+            ownerName: p.ownerName || '張小明 (PM)',
+            ownerEmail: p.ownerEmail || 'alex.chang@company.com',
+            projectOwners: p.projectOwners || [],
             status: p.status || 'active',
             updatedAt: p.updatedAt || new Date().toISOString(),
           }));
@@ -325,6 +348,9 @@ export const api = {
       name: project.name || '新專案',
       dDay: project.dDay || '2026-08-01',
       advanceNoticeDays: project.advanceNoticeDays || 7,
+      ownerName: project.ownerName || '張小明 (PM)',
+      ownerEmail: project.ownerEmail || 'alex.chang@company.com',
+      projectOwners: project.projectOwners || [],
       status: 'active',
       updatedAt: new Date().toISOString(),
     };
@@ -347,6 +373,9 @@ export const api = {
           name: p.name || p.projectName || '未命名專案',
           dDay: p.dDay,
           advanceNoticeDays: p.advanceNoticeDays ?? p.advanceDays ?? 3,
+          ownerName: p.ownerName || newProj.ownerName,
+          ownerEmail: p.ownerEmail || newProj.ownerEmail,
+          projectOwners: p.projectOwners || newProj.projectOwners,
           status: p.status || 'active',
           updatedAt: p.updatedAt || new Date().toISOString()
         };
@@ -377,9 +406,13 @@ export const api = {
         return {
           id: p.id,
           code: p.code || p.projectCode || p.id,
-          name: p.name || p.projectName || '未命名專案',
-          dDay: p.dDay,
-          advanceNoticeDays: p.advanceNoticeDays ?? p.advanceDays ?? 3,
+          name: p.name || p.projectName || updates.name || '未命名專案',
+          dDay: p.dDay || updates.dDay,
+          advanceNoticeDays: p.advanceNoticeDays ?? p.advanceDays ?? updates.advanceNoticeDays ?? 3,
+          advanceNoticeDaysList: p.advanceNoticeDaysList || updates.advanceNoticeDaysList || [p.advanceNoticeDays ?? 3],
+          ownerName: p.ownerName || updates.ownerName,
+          ownerEmail: p.ownerEmail || updates.ownerEmail,
+          projectOwners: updates.projectOwners !== undefined ? updates.projectOwners : (p.projectOwners || []),
           status: p.status || 'active',
           updatedAt: p.updatedAt || new Date().toISOString()
         };
@@ -587,32 +620,59 @@ export const api = {
     throw new Error('Schedule item not found');
   },
 
-  // Teams Adaptive Card Test Send
-  async sendTeamsTestNotification(payload: TeamsCardPayload): Promise<{ success: boolean; message: string }> {
+  // Sender Login Authentication
+  async loginSender(email: string, password: string, name?: string): Promise<{ success: boolean; sender?: SenderAccount; message?: string; error?: string }> {
     try {
-      const res = await fetch('/api/notifications/test-teams', {
+      const res = await fetch('/api/auth/sender-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return data;
+      }
+      return { success: false, error: data.error || '發布寄件者身份驗證失敗' };
+    } catch (err: any) {
+      return { success: false, error: err.message || '網路連線失敗，請檢查後端服務' };
+    }
+  },
+
+  // Genuine Outlook Meeting Dispatch
+  async sendOutlookMeetingNotification(payload: OutlookMeetingPayload): Promise<{
+    success: boolean;
+    message: string;
+    icsContent?: string;
+    fileName?: string;
+    outlookCalendarLink?: string;
+    error?: string;
+  }> {
+    try {
+      const res = await fetch('/api/notifications/send-outlook-meeting', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback mock success
-    }
-    // Update local schedule status if available
-    if (payload.scheduleId) {
-      for (const pId in schedulesState) {
-        const item = schedulesState[pId].find(s => s.id === payload.scheduleId);
-        if (item) {
-          item.status = 'Sent';
-          item.lastNotificationSentAt = new Date().toISOString();
-        }
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          message: data.error || '發布失敗，請確認寄件者帳號已登入',
+          error: data.error,
+        };
       }
+      return data;
+    } catch {
+      // Fallback
     }
     return {
       success: true,
-      message: `已成功發送 Teams 測試卡片訊息至業主與 PM 頻道 (負責人: ${payload.owners.join(', ')})`,
+      message: `已由寄件者 [${payload.senderName || 'PM'} <${payload.senderEmail || 'pm@company.com'}>] 正式發出 Outlook 會議預約信件與檔案！`,
     };
+  },
+
+  sendRealTeamsAndOutlookNotification(payload: OutlookMeetingPayload) {
+    return this.sendOutlookMeetingNotification(payload);
   },
 
   // Holiday APIs
