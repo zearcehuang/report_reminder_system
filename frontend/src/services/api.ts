@@ -80,16 +80,19 @@ const MOCK_DEFAULT_RULES: MilestoneRule[] = [
 ];
 
 const MOCK_HOLIDAYS: Holiday[] = [
-  { id: 'h-1', date: '2026-01-01', name: '開國紀念日 (元旦)', isHoliday: true, category: 'DGPA' },
-  { id: 'h-2', date: '2026-02-16', name: '農曆除夕', isHoliday: true, category: 'DGPA' },
-  { id: 'h-3', date: '2026-02-17', name: '春節連假', isHoliday: true, category: 'DGPA' },
-  { id: 'h-4', date: '2026-02-18', name: '春節連假', isHoliday: true, category: 'DGPA' },
-  { id: 'h-5', date: '2026-02-19', name: '春節連假', isHoliday: true, category: 'DGPA' },
-  { id: 'h-6', date: '2026-02-28', name: '和平紀念日', isHoliday: true, category: 'DGPA' },
-  { id: 'h-7', date: '2026-04-04', name: '兒童節與清明節', isHoliday: true, category: 'DGPA' },
-  { id: 'h-8', date: '2026-06-19', name: '端午節', isHoliday: true, category: 'DGPA' },
-  { id: 'h-9', date: '2026-09-25', name: '中秋節', isHoliday: true, category: 'DGPA' },
-  { id: 'h-10', date: '2026-10-10', name: '國慶日', isHoliday: true, category: 'DGPA' },
+  { id: 'h-1', date: '2026-01-01', name: '開國紀念日 (元旦)', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'w-1', date: '2026-02-07', name: '2026 補行上班 (春節連假彈性放假補班)', isHoliday: false, isWorkday: true, category: 'DGPA' },
+  { id: 'h-2', date: '2026-02-16', name: '農曆除夕', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'h-3', date: '2026-02-17', name: '春節連假', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'h-4', date: '2026-02-18', name: '春節連假', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'h-5', date: '2026-02-19', name: '春節連假', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'h-6', date: '2026-02-28', name: '和平紀念日', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'h-7', date: '2026-04-04', name: '兒童節與清明節', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'h-8', date: '2026-06-19', name: '端午節', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'w-2', date: '2026-09-19', name: '2026 補行上班 (中秋節連假彈性放假補班)', isHoliday: false, isWorkday: true, category: 'DGPA' },
+  { id: 'h-9', date: '2026-09-25', name: '中秋節', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'h-10', date: '2026-10-10', name: '國慶日', isHoliday: true, isWorkday: false, category: 'DGPA' },
+  { id: 'w-3', date: '2027-02-20', name: '2027 補行上班 (春節連假補班)', isHoliday: false, isWorkday: true, category: 'DGPA' },
 ];
 
 const MOCK_CONTACTS: Contact[] = [
@@ -234,7 +237,7 @@ export function calculateAdjustedDate(dDayStr: string, offset: number, holidays:
   let shifted = false;
   let holidayName: string | undefined;
 
-  const holidaySet = new Map(holidays.map(h => [h.date, h.name]));
+  const holidayMap = new Map(holidays.map(h => [h.date, h]));
 
   // If date falls on weekend or holiday, shift to next business day
   while (true) {
@@ -244,17 +247,30 @@ export function calculateAdjustedDate(dDayStr: string, offset: number, holidays:
     const dateStr = `${yyyy}-${mm}-${dd}`;
     const dayOfWeek = current.getDay(); // 0 is Sun, 6 is Sat
 
+    const hRecord = holidayMap.get(dateStr);
+
+    // Explicit Make-up Workday (補班日): if marked as workday, even on weekends it is a valid business day!
+    if (hRecord && (hRecord.isWorkday === true || hRecord.isHoliday === false)) {
+      break;
+    }
+
+    // Explicit Holiday: if marked as holiday
+    if (hRecord && (hRecord.isHoliday === true || hRecord.isWorkday === false)) {
+      shifted = true;
+      holidayName = holidayName || hRecord.name;
+      current.setDate(current.getDate() + 1);
+      continue;
+    }
+
+    // Standard Weekend shift
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       shifted = true;
       holidayName = holidayName || (dayOfWeek === 0 ? '週日' : '週六');
       current.setDate(current.getDate() + 1);
-    } else if (holidaySet.has(dateStr)) {
-      shifted = true;
-      holidayName = holidayName || holidaySet.get(dateStr);
-      current.setDate(current.getDate() + 1);
-    } else {
-      break;
+      continue;
     }
+
+    break;
   }
 
   const rawY = rawTarget.getFullYear();
@@ -679,11 +695,25 @@ export const api = {
   async getHolidays(): Promise<Holiday[]> {
     try {
       const res = await fetch('/api/holidays');
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const rawList = await res.json();
+        const normalized: Holiday[] = rawList.map((item: any, idx: number) => {
+          const isWorkday = item.isWorkday === true || item.isHoliday === false;
+          return {
+            id: item.id || `h-api-${idx}`,
+            date: item.date,
+            name: item.name || item.description || (isWorkday ? '補行上班日' : '國定假日'),
+            isHoliday: !isWorkday,
+            isWorkday: isWorkday,
+            category: item.category || item.source || 'DGPA'
+          };
+        });
+        return normalized.sort((a, b) => a.date.localeCompare(b.date));
+      }
     } catch {
       // Fallback
     }
-    return holidaysState;
+    return [...holidaysState].sort((a, b) => a.date.localeCompare(b.date));
   },
 
   async syncDGPAHolidays(): Promise<{ success: boolean; count: number; message: string }> {

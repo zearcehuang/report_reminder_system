@@ -93,11 +93,19 @@ function initSeedData() {
   const holidays = readJson(HOLIDAYS_FILE, null);
   if (!holidays || holidays.length === 0) {
     const defaultHolidays = [
+      { date: '2026-01-01', description: '開國紀念日 (元旦)', isWorkday: false, source: 'DGPA' },
+      { date: '2026-02-16', description: '除夕', isWorkday: false, source: 'DGPA' },
+      { date: '2026-02-17', description: '春節', isWorkday: false, source: 'DGPA' },
+      { date: '2026-02-28', description: '和平紀念日', isWorkday: false, source: 'DGPA' },
+      { date: '2026-04-04', description: '兒童節', isWorkday: false, source: 'DGPA' },
+      { date: '2026-04-05', description: '清明節', isWorkday: false, source: 'DGPA' },
+      { date: '2026-06-19', description: '端午節', isWorkday: false, source: 'DGPA' },
       { date: '2026-09-25', description: '中秋節', isWorkday: false, source: 'DGPA' },
       { date: '2026-10-10', description: '國慶日', isWorkday: false, source: 'DGPA' },
       { date: '2027-01-01', description: '元旦', isWorkday: false, source: 'DGPA' },
       { date: '2027-02-06', description: '春節首日', isWorkday: false, source: 'DGPA' }
     ];
+    defaultHolidays.sort((a, b) => a.date.localeCompare(b.date));
     writeJson(HOLIDAYS_FILE, defaultHolidays);
   }
 }
@@ -561,6 +569,7 @@ app.post('/api/documents/extract', upload.single('file'), (req, res) => {
 // DGPA Holiday Sync & Management
 app.get('/api/holidays', (req, res) => {
   const holidays = readJson(HOLIDAYS_FILE, []);
+  holidays.sort((a, b) => a.date.localeCompare(b.date));
   res.json(holidays);
 });
 
@@ -569,21 +578,28 @@ app.post('/api/holidays/sync-dgpa', (req, res) => {
   const year = req.body.year || 2026;
   const dgpaData = [
     { date: `${year}-01-01`, description: `${year} 中華民國開國紀念日`, isWorkday: false, source: 'DGPA' },
+    { date: `${year}-02-07`, description: `${year} 補行上班 (春節連假彈性放假補班)`, isWorkday: true, source: 'DGPA' },
     { date: `${year}-02-16`, description: `${year} 除夕`, isWorkday: false, source: 'DGPA' },
     { date: `${year}-02-17`, description: `${year} 春節`, isWorkday: false, source: 'DGPA' },
+    { date: `${year}-02-28`, description: `${year} 和平紀念日`, isWorkday: false, source: 'DGPA' },
     { date: `${year}-04-04`, description: `${year} 兒童節`, isWorkday: false, source: 'DGPA' },
     { date: `${year}-04-05`, description: `${year} 清明節`, isWorkday: false, source: 'DGPA' },
     { date: `${year}-06-19`, description: `${year} 端午節`, isWorkday: false, source: 'DGPA' },
+    { date: `${year}-09-19`, description: `${year} 補行上班 (中秋節連假彈性放假補班)`, isWorkday: true, source: 'DGPA' },
     { date: `${year}-09-25`, description: `${year} 中秋節`, isWorkday: false, source: 'DGPA' },
     { date: `${year}-10-10`, description: `${year} 國慶日`, isWorkday: false, source: 'DGPA' }
   ];
 
   dgpaData.forEach(item => {
-    if (!holidays.some(h => h.date === item.date)) {
+    const existingIdx = holidays.findIndex(h => h.date === item.date);
+    if (existingIdx >= 0) {
+      holidays[existingIdx] = item;
+    } else {
       holidays.push(item);
     }
   });
 
+  holidays.sort((a, b) => a.date.localeCompare(b.date));
   writeJson(HOLIDAYS_FILE, holidays);
   res.json({ success: true, count: dgpaData.length, holidays });
 });

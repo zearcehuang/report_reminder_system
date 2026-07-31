@@ -78,7 +78,7 @@ public class DgpaHolidayService : IDgpaHolidayService
             holidays = GenerateDefaultHolidays(year);
         }
 
-        return holidays;
+        return holidays.OrderBy(h => h.Date).ToList();
     }
 
     public bool IsWorkday(DateTime date, IEnumerable<Holiday> holidays)

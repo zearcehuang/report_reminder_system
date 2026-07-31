@@ -52,9 +52,10 @@ export interface Holiday {
   id: string;
   date: string; // YYYY-MM-DD
   name: string;
-  isHoliday: boolean;
+  isHoliday: boolean; // true for National Holiday, false for Make-up Workday
   category: 'DGPA' | 'Custom';
   description?: string;
+  isWorkday?: boolean; // true for Make-up Workday (補班日)
 }
 
 export interface Contact {

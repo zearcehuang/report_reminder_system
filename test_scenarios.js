@@ -7,7 +7,7 @@ function makeRequest(options, postData = null) {
     if (postDataStr) {
       headers['Content-Length'] = Buffer.byteLength(postDataStr);
     }
-    const reqOptions = { ...options, headers };
+    const reqOptions = { hostname: '127.0.0.1', ...options, headers };
 
     const req = http.request(reqOptions, (res) => {
       let data = '';
