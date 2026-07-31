@@ -28,6 +28,9 @@ export interface MilestoneRule {
   owners: string[]; // Email or Name list
   enabled: boolean;
   notes?: string;
+  deliverables?: string[];
+  penaltyTerms?: string;
+  clauseReference?: string;
 }
 
 export interface ScheduleItem {
@@ -46,6 +49,9 @@ export interface ScheduleItem {
   submittedAt?: string;
   advanceNoticeDays: number;
   advanceNoticeDaysList?: number[]; // Multi-select warning days e.g. [1, 3, 7]
+  deliverables?: string[];
+  penaltyTerms?: string;
+  clauseReference?: string;
 }
 
 export interface Holiday {
@@ -66,6 +72,31 @@ export interface Contact {
   role?: string;
 }
 
+export interface NotificationLog {
+  id: string;
+  timestamp: string;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  ruleId: string;
+  reportTitle: string;
+  deadlineDate: string;
+  owners: string[];
+  triggerType: 'AdvanceNotice' | 'DueToday' | 'Overdue';
+  status: 'Success' | 'PartialFailed' | 'Failed';
+  channel: 'Teams+Outlook' | 'Outlook' | 'Teams';
+  message: string;
+}
+
+export interface SchedulerStatus {
+  isRunning: boolean;
+  schedulePattern: string;
+  lastScanTime?: string;
+  lastScanCount?: number;
+  nextScheduledTime?: string;
+  totalLogsCount: number;
+}
+
 export interface ExtractedMilestone {
   id: string;
   originalText: string;
@@ -74,6 +105,9 @@ export interface ExtractedMilestone {
   dayOffset: number;
   owners: string[];
   selected: boolean;
+  deliverables?: string[];
+  penaltyTerms?: string;
+  clauseReference?: string;
 }
 
 export interface DocumentExtractResult {
@@ -107,3 +141,14 @@ export interface OutlookMeetingPayload {
 }
 
 export type TeamsCardPayload = OutlookMeetingPayload;
+
+export type UserRole = 'Admin' | 'PM' | 'Auditor';
+
+export interface UserSession {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  department?: string;
+  token?: string;
+}

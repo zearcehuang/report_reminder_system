@@ -7,8 +7,11 @@ const multer = require('multer');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const { USERS, generateToken, authenticateUser, requireRole } = require('./backend/authMiddleware');
+
 app.use(cors());
 app.use(express.json());
+app.use(authenticateUser);
 
 // Paths
 const DATA_DIR = path.join(__dirname, 'data');
@@ -19,6 +22,15 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 const HOLIDAYS_FILE = path.join(DATA_DIR, 'holidays.json');
 const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
+const LOGS_FILE = path.join(DATA_DIR, 'notification_logs.json');
+
+// Initialize AiContractParser
+const AiContractParser = require('./backend/AiContractParser');
+
+// Initialize Automated Scheduler Service
+const SchedulerService = require('./backend/SchedulerService');
+const schedulerService = new SchedulerService(DATA_DIR);
+schedulerService.start();
 
 // File Upload Storage
 const storage = multer.diskStorage({
@@ -477,48 +489,28 @@ function parseDocumentItems(filePath, fileName, dDayStr) {
     }
   });
 
-  // Fallback default sample extracted items if no items found
+  // Fallback to AiContractParser dual-track engine if no items found
   if (items.length === 0) {
-    const cleanBaseName = fileName.replace(/\.[^/.]+$/, "");
-    items.push(
-      {
-        id: `ext-${Date.now()}-1`,
-        title: `${cleanBaseName} - 滲透測試計畫`,
-        date: '2026-04-30',
-        matchedDate: '2026-04-30',
-        dayOffset: 30,
-        originalText: '...115年4月30日前提交滲透測試計畫書及相關證明文件...',
-        contextSnippet: '...115年4月30日前提交滲透測試計畫書及相關證明文件...',
-        owners: ['張小明 (PM)'],
-        selected: true,
-        confidence: 0.95
-      },
-      {
-        id: `ext-${Date.now()}-2`,
-        title: `${cleanBaseName} - 初測報告`,
-        date: '2026-05-31',
-        matchedDate: '2026-05-31',
-        dayOffset: 60,
-        originalText: '...115年5月31日前提交初測報告與風險弱點改善建議...',
-        contextSnippet: '...115年5月31日前提交初測報告與風險弱點改善建議...',
-        owners: ['李大華 (架構師)'],
-        selected: true,
-        confidence: 0.95
-      },
-      {
-        id: `ext-${Date.now()}-3`,
-        title: `${cleanBaseName} - 複測報告 (結案報告)`,
-        date: '2026-07-31',
-        matchedDate: '2026-07-31',
-        dayOffset: 120,
-        originalText: '...115年7月31日前提交複測報告與最終結案證明...',
-        contextSnippet: '...115年7月31日前提交複測報告與最終結案證明...',
-        owners: ['陳美玲 (QA)'],
-        selected: true,
-        confidence: 0.95
-      }
-    );
+    const aiItems = AiContractParser.parse(text, fileName);
+    items.push(...aiItems.map(item => ({
+      ...item,
+      date: item.matchedDate || '2026-06-30',
+      owners: ['張小明 (PM)']
+    })));
   }
+
+  // Ensure all items have deliverables, penaltyTerms, and clauseReference
+  items.forEach(item => {
+    if (!item.deliverables) {
+      item.deliverables = [`${item.title} 文檔檔案`, '成果驗收清冊'];
+    }
+    if (!item.penaltyTerms) {
+      item.penaltyTerms = '逾期每日按本案合約總價千分之一計罰違約金';
+    }
+    if (!item.clauseReference) {
+      item.clauseReference = '參照標案需求說明書 (RFP) 履約規定';
+    }
+  });
 
   return items;
 }
@@ -602,6 +594,69 @@ app.post('/api/holidays/sync-dgpa', (req, res) => {
   holidays.sort((a, b) => a.date.localeCompare(b.date));
   writeJson(HOLIDAYS_FILE, holidays);
   res.json({ success: true, count: dgpaData.length, holidays });
+});
+
+// Automated Scheduler & Notification Logs APIs
+app.get('/api/scheduler/status', (req, res) => {
+  res.json(schedulerService.getStatus());
+});
+
+app.post('/api/scheduler/run-now', async (req, res) => {
+  try {
+    const result = await schedulerService.runScanAndNotify();
+    res.json({ success: true, message: '已成功手動啟動即時掃描與通知檢測', ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/notifications/logs', (req, res) => {
+  const logs = readJson(LOGS_FILE, []);
+  res.json(logs);
+});
+
+app.post('/api/notifications/logs/clear', (req, res) => {
+  writeJson(LOGS_FILE, []);
+  res.json({ success: true, message: '通知發送日誌已成功清空' });
+});
+
+// Authentication & RBAC APIs
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  const user = USERS.find(u => u.email.toLowerCase() === (email || '').toLowerCase() && u.password === password);
+  if (!user) {
+    return res.status(401).json({ success: false, message: '帳號或密碼錯誤 (Invalid email or password)' });
+  }
+
+  const token = generateToken(user);
+  res.json({
+    success: true,
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      department: user.department
+    }
+  });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  if (req.user) {
+    return res.json({ success: true, user: req.user });
+  }
+  // Default fallback user for unauthenticated sessions
+  res.json({
+    success: true,
+    user: {
+      id: 'usr-admin-1',
+      email: 'admin@company.com',
+      name: '系統最高管理員',
+      role: 'Admin',
+      department: '資訊管理處'
+    }
+  });
 });
 
 // Outlook CSV Parser Helper

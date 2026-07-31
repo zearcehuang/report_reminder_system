@@ -13,6 +13,9 @@ import { ContactImportModal } from './components/ContactImportModal';
 import { ErrorLogModal } from './components/ErrorLogModal';
 import { AddReportModal } from './components/AddReportModal';
 import { EditReportModal } from './components/EditReportModal';
+import { SchedulerLogModal } from './components/SchedulerLogModal';
+import { UserAuthModal } from './components/UserAuthModal';
+import { UserSession } from './types';
 import { Calendar, Layers, FileText, CheckCircle2, Clock, Sparkles, AlertCircle } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -21,6 +24,7 @@ export const App: React.FC = () => {
   const [rules, setRules] = useState<MilestoneRule[]>([]);
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserSession>(api.getAuthSession());
   
   // Modals visibility
   const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
@@ -28,6 +32,8 @@ export const App: React.FC = () => {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isErrorLogModalOpen, setIsErrorLogModalOpen] = useState(false);
   const [isAddReportModalOpen, setIsAddReportModalOpen] = useState(false);
+  const [isSchedulerLogModalOpen, setIsSchedulerLogModalOpen] = useState(false);
+  const [isUserAuthModalOpen, setIsUserAuthModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<MilestoneRule | null>(null);
   const [isEditReportModalOpen, setIsEditReportModalOpen] = useState(false);
 
@@ -262,12 +268,15 @@ export const App: React.FC = () => {
       <Navbar
         projects={projects}
         activeProject={activeProject || { id: '', code: 'PRJ-NONE', name: '尚無專案', dDay: '', advanceNoticeDays: 3, status: 'active', updatedAt: '' }}
+        currentUser={currentUser}
         onSelectProject={handleSelectProject}
         onOpenProjectManager={() => setIsProjectManagerOpen(true)}
         onOpenHolidayModal={() => setIsHolidayModalOpen(true)}
         onOpenContactModal={() => setIsContactModalOpen(true)}
         onOpenErrorLogModal={() => setIsErrorLogModalOpen(true)}
         onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
+        onOpenSchedulerLogModal={() => setIsSchedulerLogModalOpen(true)}
+        onOpenUserAuthModal={() => setIsUserAuthModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -555,6 +564,18 @@ export const App: React.FC = () => {
         rule={editingRule}
         contacts={contacts}
         onSaveRule={handleSaveEditedRule}
+      />
+
+      <SchedulerLogModal
+        isOpen={isSchedulerLogModalOpen}
+        onClose={() => setIsSchedulerLogModalOpen(false)}
+      />
+
+      <UserAuthModal
+        isOpen={isUserAuthModalOpen}
+        onClose={() => setIsUserAuthModalOpen(false)}
+        currentUser={currentUser}
+        onUserLoginSuccess={(u) => setCurrentUser(u)}
       />
     </div>
   );

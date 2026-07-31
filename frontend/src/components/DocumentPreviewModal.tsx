@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DocumentExtractResult, ExtractedMilestone } from '../types';
-import { FileText, X, Check, Calendar, User, Sparkles, AlertCircle } from 'lucide-react';
+import { FileText, X, Check, Calendar, User, Sparkles, Scale, Package, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -18,10 +18,15 @@ export const DocumentPreviewModal: React.FC<Props> = ({
   const [milestones, setMilestones] = useState<ExtractedMilestone[]>(
     extractResult ? extractResult.extractedMilestones : []
   );
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     if (extractResult) {
       setMilestones(extractResult.extractedMilestones);
+      // Auto expand first card
+      if (extractResult.extractedMilestones.length > 0) {
+        setExpandedCards({ [extractResult.extractedMilestones[0].id]: true });
+      }
     }
   }, [extractResult]);
 
@@ -37,6 +42,11 @@ export const DocumentPreviewModal: React.FC<Props> = ({
     setMilestones((prev) => prev.map((m) => ({ ...m, selected: select })));
   };
 
+  const toggleExpand = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const selectedCount = milestones.filter((m) => m.selected).length;
 
   const handleConfirm = () => {
@@ -47,20 +57,21 @@ export const DocumentPreviewModal: React.FC<Props> = ({
 
   return (
     <div className="modal-overlay">
-      <div className="glass-modal width-full" style={{ maxWidth: '820px', padding: '1.75rem' }}>
+      <div className="glass-modal width-full" style={{ maxWidth: '860px', padding: '1.75rem' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
-              background: 'var(--accent-gradient)',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)',
               padding: '0.65rem',
               borderRadius: 'var(--radius-sm)',
               display: 'flex',
+              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.3)',
             }}>
               <FileText size={22} color="#fff" />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.2rem' }}>標案/合約文件關鍵日期提取與比對預覽</h2>
+              <h2 style={{ fontSize: '1.2rem' }}>AI 標案合約文件深度解析與五維度比對預覽</h2>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                 來源檔案: <span style={{ color: 'var(--accent-secondary)', fontWeight: 600 }}>{extractResult.fileName}</span> ({extractResult.fileSize})
               </p>
@@ -73,8 +84,8 @@ export const DocumentPreviewModal: React.FC<Props> = ({
 
         {/* Info Banner */}
         <div style={{
-          background: '#eff6ff',
-          border: '1px solid #bfdbfe',
+          background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
+          border: '1px solid #c7d2fe',
           borderRadius: 'var(--radius-sm)',
           padding: '0.75rem 1rem',
           marginBottom: '1.25rem',
@@ -83,18 +94,18 @@ export const DocumentPreviewModal: React.FC<Props> = ({
           justifyContent: 'space-between',
           fontSize: '0.825rem',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af', fontWeight: 600 }}>
-            <Sparkles size={18} color="#2563eb" />
-            AI 智能文件解析已自動偵測 <strong>{milestones.length}</strong> 項報告繳交死線與相關負責人
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#3730a3', fontWeight: 600 }}>
+            <Sparkles size={18} color="#4f46e5" />
+            AI 已成功解讀五維度結構化欄位（含死線天數、📦 交付產出物、⚖️ 罰則條文與 📜 條文索引）
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
               onClick={() => handleToggleSelectAll(true)}
-              style={{ background: 'transparent', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+              style={{ background: 'transparent', border: 'none', color: '#4338ca', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
             >
               全選
             </button>
-            <span style={{ color: '#94a3b8' }}>|</span>
+            <span style={{ color: '#a5b4fc' }}>|</span>
             <button
               onClick={() => handleToggleSelectAll(false)}
               style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.75rem' }}
@@ -105,68 +116,128 @@ export const DocumentPreviewModal: React.FC<Props> = ({
         </div>
 
         {/* Milestone List */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '380px', overflowY: 'auto', paddingRight: '0.25rem' }}>
-          {milestones.map((m) => (
-            <div
-              key={m.id}
-              onClick={() => handleToggleSelect(m.id)}
-              style={{
-                background: m.selected ? '#eff6ff' : '#ffffff',
-                border: m.selected ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-                borderRadius: 'var(--radius-md)',
-                padding: '0.85rem 1.15rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
-                <input
-                  type="checkbox"
-                  checked={m.selected}
-                  onChange={() => handleToggleSelect(m.id)}
-                  style={{ marginTop: '0.25rem', width: '16px', height: '16px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
-                />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+          {milestones.map((m) => {
+            const isExpanded = !!expandedCards[m.id];
+            const deliverables = m.deliverables || [`${m.title} 文檔檔案`, '成果驗收清冊'];
+            const penaltyTerms = m.penaltyTerms || '逾期每日按本案合約總價千分之一計罰違約金';
+            const clauseRef = m.clauseReference || '參照標案需求說明書 (RFP) 履約規定';
 
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                    <h4 style={{ fontSize: '0.95rem', color: m.selected ? '#0f172a' : '#334155', fontWeight: 600 }}>
-                      {m.title}
-                    </h4>
-                    <span style={{
-                      background: '#e0f2fe',
-                      color: '#0369a1',
-                      padding: '0.15rem 0.6rem',
-                      borderRadius: 'var(--radius-full)',
-                      fontSize: '0.75rem',
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 700,
-                    }}>
-                      D + {m.dayOffset ?? 0} 天 ({m.matchedDate || (m as any).date || '未指定死線'})
-                    </span>
-                  </div>
+            return (
+              <div
+                key={m.id}
+                onClick={() => handleToggleSelect(m.id)}
+                style={{
+                  background: m.selected ? '#ffffff' : '#f8fafc',
+                  border: m.selected ? '2px solid #4f46e5' : '1px solid #e2e8f0',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '0.85rem 1.15rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: m.selected ? '0 4px 12px rgba(79, 70, 229, 0.08)' : '0 1px 3px rgba(15, 23, 42, 0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={m.selected}
+                    onChange={() => handleToggleSelect(m.id)}
+                    style={{ marginTop: '0.25rem', width: '16px', height: '16px', accentColor: '#4f46e5', cursor: 'pointer' }}
+                  />
 
-                  <p style={{ fontSize: '0.775rem', color: '#64748b', marginBottom: '0.4rem', fontStyle: 'italic' }}>
-                    內文依據: "{m.originalText || (m as any).contextSnippet || m.title || ''}"
-                  </p>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', color: m.selected ? '#0f172a' : '#334155', fontWeight: 700 }}>
+                        {m.title}
+                      </h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          background: '#e0e7ff',
+                          color: '#3730a3',
+                          padding: '0.15rem 0.65rem',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: '0.75rem',
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: 700,
+                        }}>
+                          D + {m.dayOffset ?? 0} 天 ({m.matchedDate || (m as any).date || '未指定死線'})
+                        </span>
+                        <button
+                          className="btn-icon"
+                          onClick={(e) => toggleExpand(m.id, e)}
+                          style={{ padding: '0.2rem' }}
+                          title={isExpanded ? "折疊五維度合約細節" : "展開五維度合約細節"}
+                        >
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      </div>
+                    </div>
 
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {(m.owners || ['張小明 (PM)']).map((owner) => (
-                      <span key={owner} style={{ fontSize: '0.725rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.2rem', background: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                        <User size={12} color="#4f46e5" /> {owner}
-                      </span>
-                    ))}
+                    <p style={{ fontSize: '0.775rem', color: '#64748b', marginBottom: '0.5rem', fontStyle: 'italic' }}>
+                      原始條文: "{m.originalText || (m as any).contextSnippet || m.title || ''}"
+                    </p>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: isExpanded ? '0.65rem' : '0' }}>
+                      {(m.owners || ['張小明 (PM)']).map((owner) => (
+                        <span key={owner} style={{ fontSize: '0.725rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.2rem', background: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                          <User size={12} color="#4f46e5" /> {owner}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Collapsible 5D Contract Details */}
+                    {isExpanded && (
+                      <div className="animate-fade-in" style={{
+                        marginTop: '0.65rem',
+                        paddingTop: '0.65rem',
+                        borderTop: '1px dashed #cbd5e1',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem',
+                        fontSize: '0.775rem'
+                      }}>
+                        {/* Deliverables */}
+                        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--radius-sm)', padding: '0.45rem 0.75rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#15803d', fontWeight: 700, marginBottom: '0.25rem' }}>
+                            <Package size={14} /> 📦 交付產出物清單 (Deliverables):
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            {deliverables.map((item, idx) => (
+                              <span key={idx} style={{ background: '#ffffff', border: '1px solid #86efac', color: '#166534', padding: '0.1rem 0.45rem', borderRadius: '4px', fontWeight: 600 }}>
+                                ✓ {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Penalty Terms */}
+                        <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 'var(--radius-sm)', padding: '0.45rem 0.75rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#b45309', fontWeight: 700, marginBottom: '0.15rem' }}>
+                            <Scale size={14} /> ⚖️ 逾期違約罰則 (Penalty Terms):
+                          </div>
+                          <div style={{ color: '#78350f', fontWeight: 600 }}>
+                            {penaltyTerms}
+                          </div>
+                        </div>
+
+                        {/* Clause Reference */}
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.75rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <BookOpen size={14} color="#6366f1" />
+                          <span>📜 條文依據: <strong style={{ color: '#334155' }}>{clauseRef}</strong></span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Modal Footer */}
         <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            已選擇 <strong style={{ color: 'var(--accent-secondary)' }}>{selectedCount}</strong> / {milestones.length} 項里程碑
+            已選擇 <strong style={{ color: 'var(--accent-secondary)' }}>{selectedCount}</strong> / {milestones.length} 項合約里程碑
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem' }}>

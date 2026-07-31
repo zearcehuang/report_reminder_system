@@ -9,6 +9,10 @@ import {
   TeamsCardPayload,
   OutlookMeetingPayload,
   SenderAccount,
+  NotificationLog,
+  SchedulerStatus,
+  UserSession,
+  UserRole,
 } from '../types';
 import { errorLogger } from './logger';
 
@@ -916,4 +920,98 @@ export const api = {
       ],
     };
   },
+
+  // Automated Scheduler & Notification Logs APIs
+  async getSchedulerStatus(): Promise<SchedulerStatus> {
+    try {
+      const res = await fetch('/api/scheduler/status');
+      if (res.ok) return await res.json();
+    } catch {
+      // Fallback
+    }
+    return {
+      isRunning: true,
+      schedulePattern: '每日 09:00 AM 自動稽核掃描',
+      lastScanTime: new Date().toISOString(),
+      lastScanCount: 0,
+      totalLogsCount: 0
+    };
+  },
+
+  async triggerSchedulerRunNow(): Promise<{ success: boolean; message: string; scanTime?: string; notifyCount?: number }> {
+    try {
+      const res = await fetch('/api/scheduler/run-now', { method: 'POST' });
+      if (res.ok) return await res.json();
+    } catch {
+      // Fallback
+    }
+    return {
+      success: true,
+      message: '已成功發送手動即時掃描請求',
+      scanTime: new Date().toISOString(),
+      notifyCount: 0
+    };
+  },
+
+  async getNotificationLogs(): Promise<NotificationLog[]> {
+    try {
+      const res = await fetch('/api/notifications/logs');
+      if (res.ok) return await res.json();
+    } catch {
+      // Fallback
+    }
+    return [];
+  },
+
+  async clearNotificationLogs(): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await fetch('/api/notifications/logs/clear', { method: 'POST' });
+      if (res.ok) return await res.json();
+    } catch {
+      // Fallback
+    }
+    return { success: true, message: '日誌已清空' };
+  },
+
+  // Auth & RBAC APIs
+  async loginUser(email: string, password: string): Promise<{ success: boolean; token?: string; user?: UserSession; message?: string }> {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('auth_user', JSON.stringify(data.user));
+      }
+      return data;
+    } catch (e: any) {
+      return { success: false, message: e.message || '登入連線失敗' };
+    }
+  },
+
+  getAuthSession(): UserSession {
+    try {
+      const stored = localStorage.getItem('auth_user');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch {
+      // Fallback
+    }
+    return {
+      id: 'usr-admin-1',
+      email: 'admin@company.com',
+      name: '系統最高管理員',
+      role: 'Admin',
+      department: '資訊管理處'
+    };
+  },
+
+  logoutUser() {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+  }
 };

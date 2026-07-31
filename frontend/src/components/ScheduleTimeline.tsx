@@ -292,6 +292,16 @@ export const ScheduleTimeline: React.FC<Props> = ({
                         <User size={13} color="#64748b" /> {item.owners.join(', ')}
                       </span>
                     </div>
+
+                    {item.deliverables && item.deliverables.length > 0 && (
+                      <div style={{ marginTop: '0.35rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                        {item.deliverables.slice(0, 3).map((deliv, i) => (
+                          <span key={i} style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', fontSize: '0.7rem', padding: '0.05rem 0.35rem', borderRadius: '3px', fontWeight: 600 }}>
+                            📦 {deliv}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Middle: Calculated Date & Holiday Shift Badge */}
