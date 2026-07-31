@@ -23,6 +23,8 @@ const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 const HOLIDAYS_FILE = path.join(DATA_DIR, 'holidays.json');
 const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
 const LOGS_FILE = path.join(DATA_DIR, 'notification_logs.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const ROLES_FILE = path.join(DATA_DIR, 'roles.json');
 
 // Initialize AiContractParser
 const AiContractParser = require('./backend/AiContractParser');
@@ -119,6 +121,83 @@ function initSeedData() {
     ];
     defaultHolidays.sort((a, b) => a.date.localeCompare(b.date));
     writeJson(HOLIDAYS_FILE, defaultHolidays);
+  }
+
+  const users = readJson(USERS_FILE, null);
+  if (!users || users.length === 0) {
+    const defaultUsers = [
+      {
+        id: 'usr-admin-1',
+        email: 'admin@company.com',
+        password: 'admin123',
+        name: '系統最高管理員',
+        role: 'Admin',
+        department: '資訊管理處',
+        title: '資深系統管理員',
+        status: 'active',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'usr-pm-1',
+        email: 'alex.chang@company.com',
+        password: 'pm123',
+        name: '張小明',
+        role: 'PM',
+        department: '專案管理一部',
+        title: '專案經理 (PM)',
+        status: 'active',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'usr-auditor-1',
+        email: 'auditor@company.com',
+        password: 'auditor123',
+        name: '陳美玲',
+        role: 'Auditor',
+        department: '法務與合約稽核室',
+        title: '合約查核員',
+        status: 'active',
+        createdAt: new Date().toISOString()
+      }
+    ];
+    writeJson(USERS_FILE, defaultUsers);
+  }
+
+  const roles = readJson(ROLES_FILE, null);
+  if (!roles || roles.length === 0) {
+    const defaultRoles = [
+      {
+        id: 'role-admin',
+        name: 'Admin',
+        description: '系統最高管理員，具備系統所有模組與權限設定全權存取權限',
+        isSystem: true,
+        permissions: [
+          'projects:read', 'projects:write', 'projects:delete',
+          'rules:write', 'schedules:submit', 'notifications:send',
+          'holidays:manage', 'contacts:manage', 'system:admin'
+        ]
+      },
+      {
+        id: 'role-pm',
+        name: 'PM',
+        description: '專案經理，可建立與編輯專案、管理履約報告與發布會議通知',
+        isSystem: true,
+        permissions: [
+          'projects:read', 'projects:write', 'rules:write',
+          'schedules:submit', 'notifications:send', 'contacts:manage'
+        ]
+      },
+      {
+        id: 'role-auditor',
+        name: 'Auditor',
+        description: '合約與報告審核員，僅具備唯讀檢視與報告繳交狀態查核權限',
+        isSystem: true,
+        permissions: [
+          'projects:read', 'schedules:submit'
+        ]
+      }
+    ];
+    writeJson(ROLES_FILE, defaultRoles);
   }
 }
 initSeedData();
@@ -623,9 +702,13 @@ app.post('/api/notifications/logs/clear', (req, res) => {
 // Authentication & RBAC APIs
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
-  const user = USERS.find(u => u.email.toLowerCase() === (email || '').toLowerCase() && u.password === password);
+  const users = readJson(USERS_FILE, []);
+  const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase() && u.password === password);
   if (!user) {
     return res.status(401).json({ success: false, message: '帳號或密碼錯誤 (Invalid email or password)' });
+  }
+  if (user.status === 'inactive') {
+    return res.status(403).json({ success: false, message: '此帳號目前已停用，無法登入' });
   }
 
   const token = generateToken(user);
@@ -637,7 +720,9 @@ app.post('/api/auth/login', (req, res) => {
       email: user.email,
       name: user.name,
       role: user.role,
-      department: user.department
+      department: user.department,
+      title: user.title,
+      status: user.status
     }
   });
 });
@@ -654,9 +739,152 @@ app.get('/api/auth/me', (req, res) => {
       email: 'admin@company.com',
       name: '系統最高管理員',
       role: 'Admin',
-      department: '資訊管理處'
+      department: '資訊管理處',
+      title: '資深系統管理員',
+      status: 'active'
     }
   });
+});
+
+// User Management RESTful APIs
+app.get('/api/users', (req, res) => {
+  const users = readJson(USERS_FILE, []);
+  res.json(users);
+});
+
+app.post('/api/users', (req, res) => {
+  const users = readJson(USERS_FILE, []);
+  const { email, name, password, role, department, title, status } = req.body;
+  if (!email || !name) {
+    return res.status(400).json({ success: false, error: 'Email 與姓名為必填欄位' });
+  }
+  if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+    return res.status(400).json({ success: false, error: '此 Email 帳號已存在' });
+  }
+
+  const newUser = {
+    id: `usr-${Date.now()}`,
+    email: email.trim(),
+    name: name.trim(),
+    password: password || '123456',
+    role: role || 'PM',
+    department: department || '專案團隊',
+    title: title || '團隊成員',
+    status: status || 'active',
+    createdAt: new Date().toISOString()
+  };
+
+  users.push(newUser);
+  writeJson(USERS_FILE, users);
+  res.json({ success: true, user: newUser });
+});
+
+app.put('/api/users/:id', (req, res) => {
+  const users = readJson(USERS_FILE, []);
+  const index = users.findIndex(u => u.id === req.params.id);
+  if (index === -1) return res.status(404).json({ success: false, error: 'User not found' });
+
+  users[index] = {
+    ...users[index],
+    ...req.body,
+    updatedAt: new Date().toISOString()
+  };
+  writeJson(USERS_FILE, users);
+  res.json({ success: true, user: users[index] });
+});
+
+app.delete('/api/users/:id', (req, res) => {
+  let users = readJson(USERS_FILE, []);
+  users = users.filter(u => u.id !== req.params.id);
+  writeJson(USERS_FILE, users);
+  res.json({ success: true });
+});
+
+app.post('/api/users/batch-delete', (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids must be an array' });
+  let users = readJson(USERS_FILE, []);
+  users = users.filter(u => !ids.includes(u.id));
+  writeJson(USERS_FILE, users);
+  res.json({ success: true, count: ids.length });
+});
+
+app.post('/api/users/import-contacts', (req, res) => {
+  const users = readJson(USERS_FILE, []);
+  const contacts = readJson(CONTACTS_FILE, []);
+  let addedCount = 0;
+
+  contacts.forEach((c, idx) => {
+    if (!users.some(u => u.email.toLowerCase() === c.email.toLowerCase())) {
+      users.push({
+        id: `usr-${Date.now()}-${idx}`,
+        email: c.email,
+        name: c.name,
+        password: '123456',
+        role: 'PM',
+        department: c.department || '專案團隊',
+        title: c.title || '團隊成員',
+        status: 'active',
+        createdAt: new Date().toISOString()
+      });
+      addedCount++;
+    }
+  });
+
+  if (addedCount > 0) writeJson(USERS_FILE, users);
+  res.json({ success: true, addedCount, users });
+});
+
+// Role & Permissions RESTful APIs
+app.get('/api/roles', (req, res) => {
+  const roles = readJson(ROLES_FILE, []);
+  res.json(roles);
+});
+
+app.post('/api/roles', (req, res) => {
+  const roles = readJson(ROLES_FILE, []);
+  const { name, description, permissions } = req.body;
+  if (!name) return res.status(400).json({ success: false, error: '角色名稱為必填欄位' });
+  if (roles.some(r => r.name.toLowerCase() === name.toLowerCase())) {
+    return res.status(400).json({ success: false, error: '此角色名稱已存在' });
+  }
+
+  const newRole = {
+    id: `role-${Date.now()}`,
+    name: name.trim(),
+    description: description || '',
+    isSystem: false,
+    permissions: Array.isArray(permissions) ? permissions : ['projects:read']
+  };
+
+  roles.push(newRole);
+  writeJson(ROLES_FILE, roles);
+  res.json({ success: true, role: newRole });
+});
+
+app.put('/api/roles/:id', (req, res) => {
+  const roles = readJson(ROLES_FILE, []);
+  const index = roles.findIndex(r => r.id === req.params.id);
+  if (index === -1) return res.status(404).json({ success: false, error: 'Role not found' });
+
+  roles[index] = {
+    ...roles[index],
+    ...req.body,
+    updatedAt: new Date().toISOString()
+  };
+  writeJson(ROLES_FILE, roles);
+  res.json({ success: true, role: roles[index] });
+});
+
+app.delete('/api/roles/:id', (req, res) => {
+  let roles = readJson(ROLES_FILE, []);
+  const target = roles.find(r => r.id === req.params.id);
+  if (target && target.isSystem) {
+    return res.status(400).json({ success: false, error: '無法刪除系統預設角色 (Admin/PM/Auditor)' });
+  }
+  roles = roles.filter(r => r.id !== req.params.id);
+  writeJson(ROLES_FILE, roles);
+  res.json({ success: true });
 });
 
 // Outlook CSV Parser Helper

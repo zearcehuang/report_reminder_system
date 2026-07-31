@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { UserSession, UserRole } from '../types';
-import { KeyRound, X, Shield, User, Check, LogOut, Lock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { UserSession, UserRole, UserItem } from '../types';
+import { KeyRound, X, Shield, User, Check, LogOut, Lock, AlertCircle, RefreshCw } from 'lucide-react';
 import { api } from '../services/api';
 
 interface Props {
@@ -20,6 +20,22 @@ export const UserAuthModal: React.FC<Props> = ({
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<UserItem[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadUsers();
+    }
+  }, [isOpen]);
+
+  const loadUsers = async () => {
+    try {
+      const uList = await api.getUsers();
+      setAvailableUsers(uList.filter(u => u.status === 'active'));
+    } catch {
+      // Fallback
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -41,11 +57,11 @@ export const UserAuthModal: React.FC<Props> = ({
     }
   };
 
-  const handleQuickSwitch = async (accountEmail: string, accountPass: string) => {
+  const handleQuickSwitch = async (user: UserItem) => {
     setError(null);
     setIsLoading(true);
     try {
-      const res = await api.loginUser(accountEmail, accountPass);
+      const res = await api.loginUser(user.email, user.password || '123456');
       if (res.success && res.user) {
         onUserLoginSuccess(res.user);
         onClose();
@@ -60,14 +76,15 @@ export const UserAuthModal: React.FC<Props> = ({
   const getRoleBadge = (role: UserRole) => {
     if (role === 'Admin') return { label: '👑 Admin 最高管理員', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' };
     if (role === 'PM') return { label: '💼 PM 專案經理', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' };
-    return { label: '👁️ Auditor 唯讀審核員', bg: '#f8fafc', color: '#475569', border: '#cbd5e1' };
+    if (role === 'Auditor') return { label: '👁️ Auditor 審核員', bg: '#f8fafc', color: '#475569', border: '#cbd5e1' };
+    return { label: `🛡️ ${role} 專案角色`, bg: '#faf5ff', color: '#9333ea', border: '#e9d5ff' };
   };
 
   const currentRoleInfo = getRoleBadge(currentUser.role);
 
   return (
     <div className="modal-overlay">
-      <div className="glass-modal width-full" style={{ maxWidth: '580px', padding: '1.75rem' }}>
+      <div className="glass-modal width-full" style={{ maxWidth: '620px', padding: '1.75rem' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -81,9 +98,9 @@ export const UserAuthModal: React.FC<Props> = ({
               <KeyRound size={22} color="#fff" />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.2rem' }}>使用者身份驗證與 RBAC 權限切換</h2>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 800 }}>使用者身份驗證與 RBAC 權限切換</h2>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                登入與角色切換 (支持 Admin / PM / Auditor 三層級權限防護)
+                登入與角色切換 (支持動態 Users / Roles 持久化層級權限防護)
               </p>
             </div>
           </div>
@@ -109,7 +126,7 @@ export const UserAuthModal: React.FC<Props> = ({
               {currentUser.name} <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#64748b' }}>({currentUser.email})</span>
             </div>
             <div style={{ fontSize: '0.775rem', color: '#475569', marginTop: '0.15rem' }}>
-              所屬部門: <strong>{currentUser.department || '專案團隊'}</strong>
+              所屬部門: <strong>{currentUser.department || '專案團隊'}</strong> | 職稱: <strong>{currentUser.title || '成員'}</strong>
             </div>
           </div>
 
@@ -129,57 +146,46 @@ export const UserAuthModal: React.FC<Props> = ({
 
         {/* Quick Demo Role Switcher */}
         <div style={{ marginBottom: '1.25rem' }}>
-          <label style={{ fontSize: '0.825rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.5rem' }}>
-            ⚡ 快速測試帳號一鍵切換 (Quick Role Switcher):
-          </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.65rem' }}>
-            <button
-              onClick={() => handleQuickSwitch('admin@company.com', 'admin123')}
-              style={{
-                background: currentUser.role === 'Admin' ? '#fef2f2' : '#ffffff',
-                border: currentUser.role === 'Admin' ? '2px solid #ef4444' : '1px solid #e2e8f0',
-                padding: '0.65rem 0.5rem',
-                borderRadius: 'var(--radius-sm)',
-                textAlign: 'left',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#dc2626' }}>👑 Admin 管理員</div>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem' }}>完全存取/全刪寫權限</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <label style={{ fontSize: '0.825rem', fontWeight: 700, color: '#334155' }}>
+              ⚡ 快速測試帳號一鍵切換 (Quick Role Switcher):
+            </label>
+            <button className="btn-icon" style={{ padding: '0.2rem' }} onClick={loadUsers} title="重新整理帳號清單">
+              <RefreshCw size={14} />
             </button>
+          </div>
 
-            <button
-              onClick={() => handleQuickSwitch('alex.chang@company.com', 'pm123')}
-              style={{
-                background: currentUser.role === 'PM' ? '#eff6ff' : '#ffffff',
-                border: currentUser.role === 'PM' ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-                padding: '0.65rem 0.5rem',
-                borderRadius: 'var(--radius-sm)',
-                textAlign: 'left',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2563eb' }}>💼 PM 專案經理</div>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem' }}>專案編輯與派發權限</div>
-            </button>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.65rem', maxHeight: '180px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+            {availableUsers.map((u) => {
+              const isCurrent = currentUser.email.toLowerCase() === u.email.toLowerCase();
+              const badge = getRoleBadge(u.role);
 
-            <button
-              onClick={() => handleQuickSwitch('auditor@company.com', 'auditor123')}
-              style={{
-                background: currentUser.role === 'Auditor' ? '#f8fafc' : '#ffffff',
-                border: currentUser.role === 'Auditor' ? '2px solid #64748b' : '1px solid #e2e8f0',
-                padding: '0.65rem 0.5rem',
-                borderRadius: 'var(--radius-sm)',
-                textAlign: 'left',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>👁️ Auditor 審核員</div>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem' }}>純唯讀與日誌審視</div>
-            </button>
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => handleQuickSwitch(u)}
+                  style={{
+                    background: isCurrent ? badge.bg : '#ffffff',
+                    border: isCurrent ? `2px solid ${badge.color}` : '1px solid #e2e8f0',
+                    padding: '0.65rem 0.6rem',
+                    borderRadius: 'var(--radius-sm)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: isCurrent ? badge.color : '#1e293b' }}>
+                    {u.name}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {u.email}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: badge.color, marginTop: '0.2rem' }}>
+                    [{u.role}] {u.department || ''}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -228,7 +234,7 @@ export const UserAuthModal: React.FC<Props> = ({
               disabled={isLoading || !email || !password}
               style={{ fontSize: '0.825rem', padding: '0.45rem 1rem' }}
             >
-              {isLoading ? '驗登入中...' : '進行 JWT 登入'}
+              {isLoading ? '驗證登入中...' : '進行 JWT 登入'}
             </button>
           </div>
         </form>

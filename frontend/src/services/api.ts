@@ -13,6 +13,8 @@ import {
   SchedulerStatus,
   UserSession,
   UserRole,
+  UserItem,
+  RoleItem,
 } from '../types';
 import { errorLogger } from './logger';
 
@@ -1008,6 +1010,152 @@ export const api = {
       role: 'Admin',
       department: '資訊管理處'
     };
+  },
+
+  // User Management APIs
+  async getUsers(): Promise<UserItem[]> {
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) return await res.json();
+    } catch {
+      // Fallback
+    }
+    return [
+      { id: 'usr-admin-1', email: 'admin@company.com', name: '系統最高管理員', role: 'Admin', department: '資訊管理處', title: '資深系統管理員', status: 'active' },
+      { id: 'usr-pm-1', email: 'alex.chang@company.com', name: '張小明', role: 'PM', department: '專案管理一部', title: '專案經理 (PM)', status: 'active' },
+      { id: 'usr-auditor-1', email: 'auditor@company.com', name: '陳美玲', role: 'Auditor', department: '法務與合約稽核室', title: '合約查核員', status: 'active' }
+    ];
+  },
+
+  async createUser(userData: Partial<UserItem>): Promise<{ success: boolean; user?: UserItem; error?: string }> {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+      const data = await res.json();
+      return data;
+    } catch (e: any) {
+      return { success: false, error: e.message || '新增使用者失敗' };
+    }
+  },
+
+  async updateUser(id: string, updates: Partial<UserItem>): Promise<{ success: boolean; user?: UserItem; error?: string }> {
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      return data;
+    } catch (e: any) {
+      return { success: false, error: e.message || '更新使用者失敗' };
+    }
+  },
+
+  async deleteUser(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async batchDeleteUsers(ids: string[]): Promise<boolean> {
+    try {
+      const res = await fetch('/api/users/batch-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async importUsersFromContacts(): Promise<{ success: boolean; addedCount: number; users: UserItem[] }> {
+    try {
+      const res = await fetch('/api/users/import-contacts', { method: 'POST' });
+      if (res.ok) return await res.json();
+    } catch {
+      // Fallback
+    }
+    return { success: false, addedCount: 0, users: [] };
+  },
+
+  // Role Management APIs
+  async getRoles(): Promise<RoleItem[]> {
+    try {
+      const res = await fetch('/api/roles');
+      if (res.ok) return await res.json();
+    } catch {
+      // Fallback
+    }
+    return [
+      {
+        id: 'role-admin',
+        name: 'Admin',
+        description: '系統最高管理員',
+        isSystem: true,
+        permissions: ['projects:read', 'projects:write', 'projects:delete', 'rules:write', 'schedules:submit', 'notifications:send', 'holidays:manage', 'contacts:manage', 'system:admin']
+      },
+      {
+        id: 'role-pm',
+        name: 'PM',
+        description: '專案經理',
+        isSystem: true,
+        permissions: ['projects:read', 'projects:write', 'rules:write', 'schedules:submit', 'notifications:send', 'contacts:manage']
+      },
+      {
+        id: 'role-auditor',
+        name: 'Auditor',
+        description: '合約與報告審核員',
+        isSystem: true,
+        permissions: ['projects:read', 'schedules:submit']
+      }
+    ];
+  },
+
+  async createRole(roleData: Partial<RoleItem>): Promise<{ success: boolean; role?: RoleItem; error?: string }> {
+    try {
+      const res = await fetch('/api/roles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(roleData)
+      });
+      const data = await res.json();
+      return data;
+    } catch (e: any) {
+      return { success: false, error: e.message || '新增角色失敗' };
+    }
+  },
+
+  async updateRole(id: string, updates: Partial<RoleItem>): Promise<{ success: boolean; role?: RoleItem; error?: string }> {
+    try {
+      const res = await fetch(`/api/roles/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      return data;
+    } catch (e: any) {
+      return { success: false, error: e.message || '更新角色失敗' };
+    }
+  },
+
+  async deleteRole(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch(`/api/roles/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      return data;
+    } catch (e: any) {
+      return { success: false, error: e.message || '刪除角色失敗' };
+    }
   },
 
   logoutUser() {

@@ -15,6 +15,7 @@ import { AddReportModal } from './components/AddReportModal';
 import { EditReportModal } from './components/EditReportModal';
 import { SchedulerLogModal } from './components/SchedulerLogModal';
 import { UserAuthModal } from './components/UserAuthModal';
+import { UserPermissionModal } from './components/UserPermissionModal';
 import { UserSession } from './types';
 import { Calendar, Layers, FileText, CheckCircle2, Clock, Sparkles, AlertCircle } from 'lucide-react';
 
@@ -34,6 +35,7 @@ export const App: React.FC = () => {
   const [isAddReportModalOpen, setIsAddReportModalOpen] = useState(false);
   const [isSchedulerLogModalOpen, setIsSchedulerLogModalOpen] = useState(false);
   const [isUserAuthModalOpen, setIsUserAuthModalOpen] = useState(false);
+  const [isUserPermissionModalOpen, setIsUserPermissionModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<MilestoneRule | null>(null);
   const [isEditReportModalOpen, setIsEditReportModalOpen] = useState(false);
 
@@ -277,6 +279,7 @@ export const App: React.FC = () => {
         onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
         onOpenSchedulerLogModal={() => setIsSchedulerLogModalOpen(true)}
         onOpenUserAuthModal={() => setIsUserAuthModalOpen(true)}
+        onOpenUserPermissionModal={() => setIsUserPermissionModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -576,6 +579,12 @@ export const App: React.FC = () => {
         onClose={() => setIsUserAuthModalOpen(false)}
         currentUser={currentUser}
         onUserLoginSuccess={(u) => setCurrentUser(u)}
+      />
+
+      <UserPermissionModal
+        isOpen={isUserPermissionModalOpen}
+        onClose={() => setIsUserPermissionModalOpen(false)}
+        currentUser={currentUser}
       />
     </div>
   );

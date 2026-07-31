@@ -142,13 +142,48 @@ export interface OutlookMeetingPayload {
 
 export type TeamsCardPayload = OutlookMeetingPayload;
 
-export type UserRole = 'Admin' | 'PM' | 'Auditor';
+export type PermissionCode =
+  | 'projects:read'
+  | 'projects:write'
+  | 'projects:delete'
+  | 'rules:write'
+  | 'schedules:submit'
+  | 'notifications:send'
+  | 'holidays:manage'
+  | 'contacts:manage'
+  | 'system:admin';
+
+export interface RoleItem {
+  id: string;
+  name: string;
+  description: string;
+  isSystem: boolean;
+  permissions: PermissionCode[];
+  updatedAt?: string;
+}
+
+export type UserRole = string;
+
+export interface UserItem {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  department?: string;
+  title?: string;
+  status: 'active' | 'inactive';
+  password?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export interface UserSession {
   id: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: string;
   department?: string;
+  title?: string;
+  status?: 'active' | 'inactive';
   token?: string;
 }

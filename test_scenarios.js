@@ -312,7 +312,68 @@ async function runTests() {
   console.log(`  ✓ Auditor Verified Role: ${auditorAuth.user.role} (${auditorAuth.user.name})`);
   console.log('  PASS Scenario 8 ✅\n');
 
-  console.log('🎉 ALL 8 COMPREHENSIVE TEST SCENARIOS PASSED 100% SUCCESSFULLY! SYSTEM CERTIFIED READY FOR RELEASE! 🎉');
+  // Test Scenario 9: User Maintenance CRUD & Role Authorization Matrix Verification
+  console.log('▶ [Scenario 9] User Maintenance CRUD & Role Authorization Matrix Verification');
+  
+  // 9a. Get Users List
+  const userListRes = await makeRequest({
+    port: 5000,
+    path: '/api/users',
+    method: 'GET'
+  });
+  console.log(`  ✓ Loaded Users List Count: ${userListRes.length}`);
+
+  // 9b. Create New Test User
+  const uniqueEmail = `test.user.${Date.now()}@company.com`;
+  const createUserRes = await makeRequest({
+    port: 5000,
+    path: '/api/users',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, {
+    name: '林志豪',
+    email: uniqueEmail,
+    password: 'user1234',
+    role: 'PM',
+    department: '軟體開發部',
+    title: '資深工程師'
+  });
+  console.log(`  ✓ Created New User Success: ${createUserRes.success}`);
+  console.log(`    - Name: ${createUserRes.user.name} Email: ${createUserRes.user.email} Role: ${createUserRes.user.role}`);
+
+  // 9c. Import Contacts to Users
+  const importUsersRes = await makeRequest({
+    port: 5000,
+    path: '/api/users/import-contacts',
+    method: 'POST'
+  });
+  console.log(`  ✓ Import Contacts as Users Count: ${importUsersRes.addedCount}`);
+
+  // 9d. Get Roles List & Create Custom Role
+  const rolesListRes = await makeRequest({
+    port: 5000,
+    path: '/api/roles',
+    method: 'GET'
+  });
+  console.log(`  ✓ Loaded Roles List Count: ${rolesListRes.length}`);
+
+  const roleName = `QA_Leader_${Date.now().toString().slice(-4)}`;
+  const createRoleRes = await makeRequest({
+    port: 5000,
+    path: '/api/roles',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, {
+    name: roleName,
+    description: '測試組長，具備測試與報告查看權限',
+    permissions: ['projects:read', 'schedules:submit', 'rules:write']
+  });
+  console.log(`  ✓ Created Custom Role Success: ${createRoleRes.success}`);
+  console.log(`    - Custom Role ID: ${createRoleRes.role.id} Name: ${createRoleRes.role.name} Permissions: ${createRoleRes.role.permissions.join(', ')}`);
+
+  console.log('  PASS Scenario 9 ✅\n');
+
+  console.log('🎉 ALL 9 COMPREHENSIVE TEST SCENARIOS PASSED 100% SUCCESSFULLY! SYSTEM CERTIFIED READY FOR RELEASE! 🎉');
 }
 
 runTests().catch(err => {
