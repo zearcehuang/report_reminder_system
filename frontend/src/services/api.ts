@@ -17,219 +17,54 @@ import {
   RoleItem,
 } from '../types';
 import { errorLogger } from './logger';
+import {
+  MOCK_PROJECTS,
+  MOCK_DEFAULT_RULES,
+  MOCK_HOLIDAYS,
+  MOCK_CONTACTS,
+} from './mockData';
 
-// Pre-loaded default projects
-const MOCK_PROJECTS: Project[] = [
-  {
-    id: 'prj-001',
-    code: 'PRJ-001',
-    name: 'AI 客服平台建立案',
-    dDay: '2026-08-01',
-    advanceNoticeDays: 7,
-    advanceNoticeDaysList: [1, 3, 7],
-    ownerName: '張小明 (PM)',
-    ownerEmail: 'alex.chang@company.com',
-    projectOwners: [
-      { id: 'po-1', role: 'PM (專案經理)', name: '張小明', email: 'alex.chang@company.com' },
-      { id: 'po-2', role: '業務 (Sales)', name: '陳經理', email: 'sales.chen@company.com' },
-      { id: 'po-3', role: 'SA (系統分析師)', name: '李大華', email: 'david.lee@company.com' },
-    ],
-    status: 'active',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'prj-002',
-    code: 'PRJ-002',
-    name: '雲端架構移轉與資安強化案',
-    dDay: '2026-09-15',
-    advanceNoticeDays: 5,
-    advanceNoticeDaysList: [1, 3, 5],
-    ownerName: '李大華 (架構師)',
-    ownerEmail: 'david.lee@company.com',
-    projectOwners: [
-      { id: 'po-4', role: '架構師', name: '李大華', email: 'david.lee@company.com' },
-      { id: 'po-5', role: 'PM', name: '林志豪', email: 'chihhao.lin@company.com' },
-    ],
-    status: 'active',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'prj-003',
-    code: 'PRJ-003',
-    name: '智慧醫療數據分析與視覺化系統',
-    dDay: '2026-10-01',
-    advanceNoticeDays: 10,
-    advanceNoticeDaysList: [3, 7, 14],
-    ownerName: '陳美玲 (QA)',
-    ownerEmail: 'meiling.chen@company.com',
-    projectOwners: [
-      { id: 'po-6', role: 'QA (測試)', name: '陳美玲', email: 'meiling.chen@company.com' }
-    ],
-    status: 'draft',
-    updatedAt: new Date().toISOString(),
-  },
-];
+/**
+ * Unified fetch wrapper that automatically:
+ * 1. Attaches Bearer token from localStorage
+ * 2. Sets Content-Type for JSON requests
+ * 3. Provides consistent error handling
+ */
+async function fetchApi<T>(
+  url: string,
+  options: RequestInit = {},
+  fallback?: T
+): Promise<{ ok: boolean; data: T }> {
+  try {
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string> || {}),
+    };
 
-// Pre-loaded 10 milestone slots as required:
-// 啟動會議報告, 專案執行計畫書, 月報(一), 月報(二), 期中報告, 月報(三), 月報(四), 期末報告 Draft, 期末報告 Final, 驗收文件
-const MOCK_DEFAULT_RULES: MilestoneRule[] = [
-  { id: 'rule-1', projectId: 'prj-001', title: '啟動會議報告', dayOffset: 14, owners: ['pm.alex@company.com', 'lead.tech@company.com'], enabled: true },
-  { id: 'rule-2', projectId: 'prj-001', title: '專案執行計畫書', dayOffset: 30, owners: ['pm.alex@company.com'], enabled: true },
-  { id: 'rule-3', projectId: 'prj-001', title: '月報 (一)', dayOffset: 60, owners: ['reporter.sam@company.com'], enabled: true },
-  { id: 'rule-4', projectId: 'prj-001', title: '月報 (二)', dayOffset: 90, owners: ['reporter.sam@company.com'], enabled: true },
-  { id: 'rule-5', projectId: 'prj-001', title: '期中報告', dayOffset: 120, owners: ['pm.alex@company.com', 'qa.manager@company.com'], enabled: true },
-  { id: 'rule-6', projectId: 'prj-001', title: '月報 (三)', dayOffset: 150, owners: ['reporter.sam@company.com'], enabled: true },
-  { id: 'rule-7', projectId: 'prj-001', title: '月報 (四)', dayOffset: 180, owners: ['reporter.sam@company.com'], enabled: true },
-  { id: 'rule-8', projectId: 'prj-001', title: '期末報告 Draft', dayOffset: 210, owners: ['pm.alex@company.com', 'director.chen@company.com'], enabled: true },
-  { id: 'rule-9', projectId: 'prj-001', title: '期末報告 Final', dayOffset: 240, owners: ['pm.alex@company.com', 'director.chen@company.com'], enabled: true },
-  { id: 'rule-10', projectId: 'prj-001', title: '驗收文件與結案報告', dayOffset: 270, owners: ['pm.alex@company.com', 'finance.admin@company.com'], enabled: true },
-];
+    // Auto-attach auth token if available
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
-const MOCK_HOLIDAYS: Holiday[] = [
-  { id: 'h-1', date: '2026-01-01', name: '開國紀念日 (元旦)', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'w-1', date: '2026-02-07', name: '2026 補行上班 (春節連假彈性放假補班)', isHoliday: false, isWorkday: true, category: 'DGPA' },
-  { id: 'h-2', date: '2026-02-16', name: '農曆除夕', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'h-3', date: '2026-02-17', name: '春節連假', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'h-4', date: '2026-02-18', name: '春節連假', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'h-5', date: '2026-02-19', name: '春節連假', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'h-6', date: '2026-02-28', name: '和平紀念日', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'h-7', date: '2026-04-04', name: '兒童節與清明節', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'h-8', date: '2026-06-19', name: '端午節', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'w-2', date: '2026-09-19', name: '2026 補行上班 (中秋節連假彈性放假補班)', isHoliday: false, isWorkday: true, category: 'DGPA' },
-  { id: 'h-9', date: '2026-09-25', name: '中秋節', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'h-10', date: '2026-10-10', name: '國慶日', isHoliday: true, isWorkday: false, category: 'DGPA' },
-  { id: 'w-3', date: '2027-02-20', name: '2027 補行上班 (春節連假補班)', isHoliday: false, isWorkday: true, category: 'DGPA' },
-];
+    // Auto-set Content-Type for non-FormData bodies
+    if (options.body && !(options.body instanceof FormData)) {
+      headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+    }
 
-const MOCK_CONTACTS: Contact[] = [
-  { id: 'c-1', name: 'Alex Wang (專案經理)', email: 'pm.alex@company.com', department: '專案管理部', role: 'Project Manager' },
-  { id: 'c-2', name: 'Sam Lin (高級分析師)', email: 'reporter.sam@company.com', department: '研發部', role: 'Senior Analyst' },
-  { id: 'c-3', name: 'David Chen (技術總監)', email: 'director.chen@company.com', department: '技術部', role: 'Tech Lead' },
-  { id: 'c-4', name: 'Jessica Lee (品質經理)', email: 'qa.manager@company.com', department: '品保部', role: 'QA Manager' },
-  { id: 'c-5', name: 'Emily Huang (財務主管)', email: 'finance.admin@company.com', department: '財務部', role: 'Finance Supervisor' },
-];
-
-function parseClientOutlookCsv(text: string): Contact[] {
-  if (!text) return [];
-  if (text.charCodeAt(0) === 0xFEFF) {
-    text = text.slice(1);
+    const res = await fetch(url, { ...options, headers });
+    if (res.ok) {
+      const data = await res.json();
+      return { ok: true, data };
+    }
+    return { ok: false, data: fallback as T };
+  } catch (err: any) {
+    errorLogger.log('API', 'WARN', `Fetch failed for ${url}: ${err?.message || err}`);
+    return { ok: false, data: fallback as T };
   }
-
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let curr = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    const next = text[i + 1];
-
-    if (c === '"') {
-      if (inQuotes && next === '"') {
-        curr += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (c === ',' && !inQuotes) {
-      row.push(curr.trim());
-      curr = '';
-    } else if ((c === '\r' || c === '\n') && !inQuotes) {
-      if (c === '\r' && next === '\n') i++;
-      row.push(curr.trim());
-      if (row.some(cell => cell.length > 0)) rows.push(row);
-      row = [];
-      curr = '';
-    } else {
-      curr += c;
-    }
-  }
-  if (curr || row.length > 0) {
-    row.push(curr.trim());
-    if (row.some(cell => cell.length > 0)) rows.push(row);
-  }
-
-  if (rows.length < 2) return [];
-
-  const headers = rows[0].map(h => h.replace(/^["'\s]+|["'\s]+$/g, ''));
-  const findHeaderIdx = (names: string[]) => {
-    return headers.findIndex(h => names.some(n => h.toLowerCase() === n.toLowerCase() || h.includes(n)));
-  };
-
-  const fnIdx = findHeaderIdx(['名字', 'First Name']);
-  const lnIdx = findHeaderIdx(['姓氏', 'Last Name']);
-  const titleNameIdx = findHeaderIdx(['稱謂', 'Suffix']);
-  const compIdx = findHeaderIdx(['公司', 'Company']);
-  const deptIdx = findHeaderIdx(['部門', 'Department']);
-  const jobIdx = findHeaderIdx(['職稱', 'Job Title']);
-  const email1Idx = findHeaderIdx(['電子郵件地址', 'E-mail Address', 'Email Address']);
-  const email2Idx = findHeaderIdx(['電子郵件 2 地址', 'E-mail 2 Address']);
-  const email3Idx = findHeaderIdx(['電子郵件 3 地址', 'E-mail 3 Address']);
-  const dispNameIdx = findHeaderIdx(['電子郵件顯示名稱', 'E-mail Display Name']);
-
-  const contacts: Contact[] = [];
-  const seenEmails = new Set<string>();
-
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r];
-    const getVal = (idx: number) => (idx >= 0 && idx < row.length ? row[idx].replace(/^["'\s]+|["'\s]+$/g, '') : '');
-
-    const firstName = getVal(fnIdx);
-    const lastName = getVal(lnIdx);
-    const titleName = getVal(titleNameIdx);
-    const company = getVal(compIdx);
-    const dept = getVal(deptIdx);
-    const jobTitle = getVal(jobIdx);
-    const emailDispName = getVal(dispNameIdx);
-
-    let email = getVal(email1Idx);
-    if (!email || !email.includes('@') || email.startsWith('/o=')) {
-      email = getVal(email2Idx);
-    }
-    if (!email || !email.includes('@') || email.startsWith('/o=')) {
-      email = getVal(email3Idx);
-    }
-    if (!email || !email.includes('@') || email.startsWith('/o=')) {
-      const lineStr = row.join(' ');
-      const match = lineStr.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      if (match) email = match[0];
-    }
-
-    if (!email || !email.includes('@') || email.startsWith('/o=')) continue;
-    if (seenEmails.has(email.toLowerCase())) continue;
-    seenEmails.add(email.toLowerCase());
-
-    let displayName = '';
-    if (lastName || firstName) {
-      const isEn = /^[A-Za-z0-9\s._-]+$/.test((lastName + firstName).trim());
-      if (isEn) {
-        displayName = [firstName, lastName].filter(Boolean).join(' ');
-      } else {
-        displayName = `${lastName}${firstName}`;
-      }
-      if (titleName && !displayName.includes(titleName)) {
-        displayName += ` ${titleName}`;
-      }
-    } else if (emailDispName && emailDispName !== email && !emailDispName.startsWith('/o=')) {
-      displayName = emailDispName;
-    } else {
-      displayName = email.split('@')[0];
-    }
-
-    const department = dept || company || '通用聯絡人';
-    const role = jobTitle || '';
-
-    contacts.push({
-      id: `c-${Date.now()}-${r}`,
-      name: displayName,
-      email: email,
-      department: department,
-      role: role
-    });
-  }
-
-  return contacts;
 }
+
+// NOTE: Mock data is centralized in mockData.ts.
+// CSV parsing is handled entirely by the backend API (/api/contacts/import).
 
 // Helper to calculate target date given D-Day and offset, adjusting for holidays & weekends
 export function calculateAdjustedDate(dDayStr: string, offset: number, holidays: Holiday[]): { targetDate: string; shiftedDate: string; shifted: boolean; holidayName?: string } {
@@ -723,61 +558,39 @@ export const api = {
   },
 
   async syncDGPAHolidays(): Promise<{ success: boolean; count: number; message: string }> {
-    try {
-      const res = await fetch('/api/holidays/sync-dgpa', { method: 'POST' });
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback mock DGPA API response
-    }
-    // Refresh DGPA items
-    return {
+    const fallback = {
       success: true,
       count: holidaysState.length,
       message: '已成功同步 行政院人事行政總處 (DGPA) 2026/2027 年度政府行政機關辦公日曆表 (包含彈性放假及補班日)',
     };
+    const { ok, data } = await fetchApi<{ success: boolean; count: number; message: string }>('/api/holidays/sync-dgpa', { method: 'POST' }, fallback);
+    return data;
   },
 
   async addCustomHoliday(holiday: Omit<Holiday, 'id'>): Promise<Holiday> {
     const newH: Holiday = { ...holiday, id: `h-${Date.now()}` };
-    try {
-      const res = await fetch('/api/holidays', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newH),
-      });
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    holidaysState.push(newH);
-    return newH;
+    const { ok, data } = await fetchApi<Holiday>('/api/holidays', {
+      method: 'POST',
+      body: JSON.stringify(newH),
+    }, newH);
+    if (!ok) holidaysState.push(newH);
+    return data;
   },
 
   // Contact APIs
   async getContacts(): Promise<Contact[]> {
-    try {
-      const res = await fetch('/api/contacts');
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    return contactsState;
+    const { data } = await fetchApi<Contact[]>('/api/contacts', {}, contactsState);
+    return data;
   },
 
   async uploadContacts(contacts: Omit<Contact, 'id'>[]): Promise<Contact[]> {
     const created = contacts.map((c, i) => ({ ...c, id: `c-${Date.now()}-${i}` }));
-    try {
-      const res = await fetch('/api/contacts/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(created),
-      });
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    contactsState.push(...created);
-    return created;
+    const { ok, data } = await fetchApi<Contact[]>('/api/contacts/upload', {
+      method: 'POST',
+      body: JSON.stringify(created),
+    }, created);
+    if (!ok) contactsState.push(...created);
+    return data;
   },
 
   async importContactsFile(file: File): Promise<{ success: boolean; addedCount: number; totalCount: number; contacts: Contact[] }> {
@@ -797,23 +610,8 @@ export const api = {
       // Fallback client side CSV parser
     }
 
-    // Client-side fallback reading
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string || '';
-        const parsed = parseClientOutlookCsv(text);
-        let addedCount = 0;
-        parsed.forEach(c => {
-          if (!contactsState.some(item => item.email.toLowerCase() === c.email.toLowerCase())) {
-            contactsState.push(c);
-            addedCount++;
-          }
-        });
-        resolve({ success: true, addedCount, totalCount: contactsState.length, contacts: contactsState });
-      };
-      reader.readAsText(file, 'utf-8');
-    });
+    // Client-side fallback: return empty result if backend is unreachable
+    return { success: false, addedCount: 0, totalCount: contactsState.length, contacts: contactsState };
   },
 
   // Document Upload & Parsing API
@@ -925,54 +723,34 @@ export const api = {
 
   // Automated Scheduler & Notification Logs APIs
   async getSchedulerStatus(): Promise<SchedulerStatus> {
-    try {
-      const res = await fetch('/api/scheduler/status');
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    return {
+    const { data } = await fetchApi<SchedulerStatus>('/api/scheduler/status', {}, {
       isRunning: true,
       schedulePattern: '每日 09:00 AM 自動稽核掃描',
       lastScanTime: new Date().toISOString(),
       lastScanCount: 0,
       totalLogsCount: 0
-    };
+    });
+    return data;
   },
 
   async triggerSchedulerRunNow(): Promise<{ success: boolean; message: string; scanTime?: string; notifyCount?: number }> {
-    try {
-      const res = await fetch('/api/scheduler/run-now', { method: 'POST' });
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    return {
+    const { data } = await fetchApi<{ success: boolean; message: string; scanTime?: string; notifyCount?: number }>('/api/scheduler/run-now', { method: 'POST' }, {
       success: true,
       message: '已成功發送手動即時掃描請求',
       scanTime: new Date().toISOString(),
       notifyCount: 0
-    };
+    });
+    return data;
   },
 
   async getNotificationLogs(): Promise<NotificationLog[]> {
-    try {
-      const res = await fetch('/api/notifications/logs');
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    return [];
+    const { data } = await fetchApi<NotificationLog[]>('/api/notifications/logs', {}, []);
+    return data;
   },
 
   async clearNotificationLogs(): Promise<{ success: boolean; message: string }> {
-    try {
-      const res = await fetch('/api/notifications/logs/clear', { method: 'POST' });
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    return { success: true, message: '日誌已清空' };
+    const { data } = await fetchApi<{ success: boolean; message: string }>('/api/notifications/logs/clear', { method: 'POST' }, { success: true, message: '日誌已清空' });
+    return data;
   },
 
   // Auth & RBAC APIs
@@ -1014,148 +792,78 @@ export const api = {
 
   // User Management APIs
   async getUsers(): Promise<UserItem[]> {
-    try {
-      const res = await fetch('/api/users');
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    return [
-      { id: 'usr-admin-1', email: 'admin@company.com', name: '系統最高管理員', role: 'Admin', department: '資訊管理處', title: '資深系統管理員', status: 'active' },
-      { id: 'usr-pm-1', email: 'alex.chang@company.com', name: '張小明', role: 'PM', department: '專案管理一部', title: '專案經理 (PM)', status: 'active' },
-      { id: 'usr-auditor-1', email: 'auditor@company.com', name: '陳美玲', role: 'Auditor', department: '法務與合約稽核室', title: '合約查核員', status: 'active' }
-    ];
+    const { data } = await fetchApi<UserItem[]>('/api/users', {}, [
+      { id: 'usr-admin-1', email: 'admin@company.com', name: '系統最高管理員', role: 'Admin', department: '資訊管理處', title: '資深系統管理員', status: 'active' as const },
+      { id: 'usr-pm-1', email: 'alex.chang@company.com', name: '張小明', role: 'PM', department: '專案管理一部', title: '專案經理 (PM)', status: 'active' as const },
+      { id: 'usr-auditor-1', email: 'auditor@company.com', name: '陳美玲', role: 'Auditor', department: '法務與合約稽核室', title: '合約查核員', status: 'active' as const }
+    ]);
+    return data;
   },
 
   async createUser(userData: Partial<UserItem>): Promise<{ success: boolean; user?: UserItem; error?: string }> {
-    try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData)
-      });
-      const data = await res.json();
-      return data;
-    } catch (e: any) {
-      return { success: false, error: e.message || '新增使用者失敗' };
-    }
+    const { data } = await fetchApi<{ success: boolean; user?: UserItem; error?: string }>('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    }, { success: false, error: '新增使用者失敗' });
+    return data;
   },
 
   async updateUser(id: string, updates: Partial<UserItem>): Promise<{ success: boolean; user?: UserItem; error?: string }> {
-    try {
-      const res = await fetch(`/api/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      const data = await res.json();
-      return data;
-    } catch (e: any) {
-      return { success: false, error: e.message || '更新使用者失敗' };
-    }
+    const { data } = await fetchApi<{ success: boolean; user?: UserItem; error?: string }>(`/api/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }, { success: false, error: '更新使用者失敗' });
+    return data;
   },
 
   async deleteUser(id: string): Promise<boolean> {
-    try {
-      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
-      return res.ok;
-    } catch {
-      return false;
-    }
+    const { ok } = await fetchApi(`/api/users/${id}`, { method: 'DELETE' });
+    return ok;
   },
 
   async batchDeleteUsers(ids: string[]): Promise<boolean> {
-    try {
-      const res = await fetch('/api/users/batch-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids })
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+    const { ok } = await fetchApi('/api/users/batch-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    return ok;
   },
 
   async importUsersFromContacts(): Promise<{ success: boolean; addedCount: number; users: UserItem[] }> {
-    try {
-      const res = await fetch('/api/users/import-contacts', { method: 'POST' });
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    return { success: false, addedCount: 0, users: [] };
+    const { data } = await fetchApi<{ success: boolean; addedCount: number; users: UserItem[] }>('/api/users/import-contacts', { method: 'POST' }, { success: false, addedCount: 0, users: [] });
+    return data;
   },
 
   // Role Management APIs
   async getRoles(): Promise<RoleItem[]> {
-    try {
-      const res = await fetch('/api/roles');
-      if (res.ok) return await res.json();
-    } catch {
-      // Fallback
-    }
-    return [
-      {
-        id: 'role-admin',
-        name: 'Admin',
-        description: '系統最高管理員',
-        isSystem: true,
-        permissions: ['projects:read', 'projects:write', 'projects:delete', 'rules:write', 'schedules:submit', 'notifications:send', 'holidays:manage', 'contacts:manage', 'system:admin']
-      },
-      {
-        id: 'role-pm',
-        name: 'PM',
-        description: '專案經理',
-        isSystem: true,
-        permissions: ['projects:read', 'projects:write', 'rules:write', 'schedules:submit', 'notifications:send', 'contacts:manage']
-      },
-      {
-        id: 'role-auditor',
-        name: 'Auditor',
-        description: '合約與報告審核員',
-        isSystem: true,
-        permissions: ['projects:read', 'schedules:submit']
-      }
+    const fallbackRoles: RoleItem[] = [
+      { id: 'role-admin', name: 'Admin', description: '系統最高管理員', isSystem: true, permissions: ['projects:read', 'projects:write', 'projects:delete', 'rules:write', 'schedules:submit', 'notifications:send', 'holidays:manage', 'contacts:manage', 'system:admin'] },
+      { id: 'role-pm', name: 'PM', description: '專案經理', isSystem: true, permissions: ['projects:read', 'projects:write', 'rules:write', 'schedules:submit', 'notifications:send', 'contacts:manage'] },
+      { id: 'role-auditor', name: 'Auditor', description: '合約與報告審核員', isSystem: true, permissions: ['projects:read', 'schedules:submit'] },
     ];
+    const { data } = await fetchApi<RoleItem[]>('/api/roles', {}, fallbackRoles);
+    return data;
   },
 
   async createRole(roleData: Partial<RoleItem>): Promise<{ success: boolean; role?: RoleItem; error?: string }> {
-    try {
-      const res = await fetch('/api/roles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(roleData)
-      });
-      const data = await res.json();
-      return data;
-    } catch (e: any) {
-      return { success: false, error: e.message || '新增角色失敗' };
-    }
+    const { data } = await fetchApi<{ success: boolean; role?: RoleItem; error?: string }>('/api/roles', {
+      method: 'POST',
+      body: JSON.stringify(roleData),
+    }, { success: false, error: '新增角色失敗' });
+    return data;
   },
 
   async updateRole(id: string, updates: Partial<RoleItem>): Promise<{ success: boolean; role?: RoleItem; error?: string }> {
-    try {
-      const res = await fetch(`/api/roles/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      const data = await res.json();
-      return data;
-    } catch (e: any) {
-      return { success: false, error: e.message || '更新角色失敗' };
-    }
+    const { data } = await fetchApi<{ success: boolean; role?: RoleItem; error?: string }>(`/api/roles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }, { success: false, error: '更新角色失敗' });
+    return data;
   },
 
   async deleteRole(id: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const res = await fetch(`/api/roles/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      return data;
-    } catch (e: any) {
-      return { success: false, error: e.message || '刪除角色失敗' };
-    }
+    const { data } = await fetchApi<{ success: boolean; error?: string }>(`/api/roles/${id}`, { method: 'DELETE' }, { success: false, error: '刪除角色失敗' });
+    return data;
   },
 
   logoutUser() {

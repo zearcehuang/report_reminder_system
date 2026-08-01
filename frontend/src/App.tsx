@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Project, MilestoneRule, ScheduleItem, Contact, DocumentExtractResult, ExtractedMilestone } from './types';
 import { api } from './services/api';
 import { Navbar } from './components/Navbar';
@@ -53,7 +53,7 @@ export const App: React.FC = () => {
     initData();
   }, []);
 
-  const initData = async () => {
+  const initData = useCallback(async () => {
     setIsLoading(true);
     try {
       const projList = await api.getProjects();
@@ -72,14 +72,14 @@ export const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const loadProjectDetails = async (projectId: string) => {
+  const loadProjectDetails = useCallback(async (projectId: string) => {
     const r = await api.getRules(projectId);
     setRules(r);
     const s = await api.getSchedules(projectId);
     setSchedules(s);
-  };
+  }, []);
 
   const handleSelectProject = async (project: Project) => {
     setActiveProject(project);
@@ -247,6 +247,14 @@ export const App: React.FC = () => {
     setContacts(c);
   };
 
+  // Calculate statistics (memoized to avoid recomputation on every render)
+  const { totalMilestones, submittedCount, pendingCount, shiftedCount } = useMemo(() => ({
+    totalMilestones: rules.filter(r => r.enabled).length,
+    submittedCount: schedules.filter(s => s.status === 'Submitted').length,
+    pendingCount: schedules.filter(s => s.status === 'Pending').length,
+    shiftedCount: schedules.filter(s => s.wasShiftedByHoliday).length,
+  }), [rules, schedules]);
+
   if (isLoading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
@@ -257,12 +265,6 @@ export const App: React.FC = () => {
       </div>
     );
   }
-
-  // Calculate statistics
-  const totalMilestones = rules.filter(r => r.enabled).length;
-  const submittedCount = schedules.filter(s => s.status === 'Submitted').length;
-  const pendingCount = schedules.filter(s => s.status === 'Pending').length;
-  const shiftedCount = schedules.filter(s => s.wasShiftedByHoliday).length;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -288,54 +290,54 @@ export const App: React.FC = () => {
           <>
             {/* Top Summary Banner Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
-              <div className="glass-card" style={{ padding: '1.25rem' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
+              <div className="glass-card stat-card">
+                <div className="stat-card-label">
                   當前開工日 (D-DAY)
                 </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div className="stat-card-value">
                   <Calendar size={22} color="var(--accent-secondary)" />
                   {activeProject.dDay || '尚未指定'}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                <div className="stat-card-sublabel">
                   提前 <strong style={{ color: '#fbbf24' }}>{activeProject.advanceNoticeDays} 天</strong> 自動推播通知
                 </div>
               </div>
 
-              <div className="glass-card" style={{ padding: '1.25rem' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
+              <div className="glass-card stat-card">
+                <div className="stat-card-label">
                   已啟用履約報告數
                 </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div className="stat-card-value">
                   <Layers size={22} color="#818cf8" />
                   {totalMilestones} 項 Slots
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                <div className="stat-card-sublabel">
                   標準里程碑規則已載入
                 </div>
               </div>
 
-              <div className="glass-card" style={{ padding: '1.25rem' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
+              <div className="glass-card stat-card">
+                <div className="stat-card-label">
                   繳交進度狀態
                 </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div className="stat-card-value" style={{ color: '#34d399' }}>
                   <CheckCircle2 size={22} color="#10b981" />
                   {submittedCount} / {schedules.length} 已完成
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                <div className="stat-card-sublabel">
                   剩餘 <strong style={{ color: '#fbbf24' }}>{pendingCount} 項</strong> 待履約報告
                 </div>
               </div>
 
-              <div className="glass-card" style={{ padding: '1.25rem' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.4rem' }}>
+              <div className="glass-card stat-card">
+                <div className="stat-card-label">
                   DGPA 休假順延調整
                 </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#c084fc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div className="stat-card-value" style={{ color: '#c084fc' }}>
                   <Sparkles size={22} color="#c084fc" />
                   {shiftedCount} 項死線已順延
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                <div className="stat-card-sublabel">
                   自動避開週休與政府辦公日曆
                 </div>
               </div>
@@ -345,60 +347,21 @@ export const App: React.FC = () => {
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--surface-glass-border)', paddingBottom: '0.5rem' }}>
               <button
                 onClick={() => setActiveTab('dashboard')}
-                style={{
-                  background: activeTab === 'dashboard' ? 'var(--accent-gradient)' : 'transparent',
-                  border: 'none',
-                  color: '#ffffff',
-                  padding: '0.55rem 1.25rem',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  transition: 'all 0.2s ease',
-                }}
+                className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
               >
                 <Layers size={17} /> 完整管控儀表板
               </button>
 
               <button
                 onClick={() => setActiveTab('timeline')}
-                style={{
-                  background: activeTab === 'timeline' ? 'var(--accent-gradient)' : 'transparent',
-                  border: 'none',
-                  color: activeTab === 'timeline' ? '#ffffff' : 'var(--text-secondary)',
-                  padding: '0.55rem 1.25rem',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  transition: 'all 0.2s ease',
-                }}
+                className={`tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
               >
                 <Clock size={17} /> 履約死線時間軸 ({schedules.length})
               </button>
 
               <button
                 onClick={() => setActiveTab('rules')}
-                style={{
-                  background: activeTab === 'rules' ? 'var(--accent-gradient)' : 'transparent',
-                  border: 'none',
-                  color: activeTab === 'rules' ? '#ffffff' : 'var(--text-secondary)',
-                  padding: '0.55rem 1.25rem',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  transition: 'all 0.2s ease',
-                }}
+                className={`tab-btn ${activeTab === 'rules' ? 'active' : ''}`}
               >
                 <FileText size={17} /> 里程碑規則與負責人
               </button>

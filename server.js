@@ -3,14 +3,57 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 const { USERS, generateToken, authenticateUser, requireRole } = require('./backend/authMiddleware');
 
-app.use(cors());
-app.use(express.json());
+// CORS: restrict origins to frontend dev server and production
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5000',
+    `http://127.0.0.1:3000`,
+    `http://127.0.0.1:5000`
+  ],
+  credentials: true
+}));
+
+// Request body size limit to prevent abuse
+app.use(express.json({ limit: '10mb' }));
+
+// Simple in-memory rate limiter
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 200; // max requests per window per IP
+
+app.use((req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+  let entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    entry = { windowStart: now, count: 0 };
+    rateLimitMap.set(ip, entry);
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: 'Too many requests, please try again later' });
+  }
+  next();
+});
+
+// Periodically clean up rate limit map (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap) {
+    if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS * 2) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000);
+
 app.use(authenticateUser);
 
 // Paths
@@ -44,18 +87,59 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Helper Functions
+// Helper Functions — Write-through cache for JSON files
+const jsonCache = new Map();
+
 function readJson(filePath, defaultValue) {
+  // Return from cache if available
+  if (jsonCache.has(filePath)) {
+    return jsonCache.get(filePath);
+  }
   try {
     if (!fs.existsSync(filePath)) return defaultValue;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    jsonCache.set(filePath, data);
+    return data;
   } catch (err) {
     return defaultValue;
   }
 }
 
 function writeJson(filePath, data) {
+  jsonCache.set(filePath, data);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// Invalidate cache when file changes from outside (e.g. manual edits)
+function invalidateCache(filePath) {
+  jsonCache.delete(filePath);
+}
+
+// Date formatting helper
+function formatDateISO(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// Password hashing helpers
+const SALT_LENGTH = 16;
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(SALT_LENGTH).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, storedHash) {
+  // Backward compat: if stored password has no ':' separator, it's plaintext (legacy)
+  if (!storedHash.includes(':')) {
+    return password === storedHash;
+  }
+  const [salt, hash] = storedHash.split(':');
+  const testHash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return hash === testHash;
 }
 
 // Initial Data Seed
@@ -129,7 +213,7 @@ function initSeedData() {
       {
         id: 'usr-admin-1',
         email: 'admin@company.com',
-        password: 'admin123',
+        password: hashPassword('admin123'),
         name: '系統最高管理員',
         role: 'Admin',
         department: '資訊管理處',
@@ -140,7 +224,7 @@ function initSeedData() {
       {
         id: 'usr-pm-1',
         email: 'alex.chang@company.com',
-        password: 'pm123',
+        password: hashPassword('pm123'),
         name: '張小明',
         role: 'PM',
         department: '專案管理一部',
@@ -151,7 +235,7 @@ function initSeedData() {
       {
         id: 'usr-auditor-1',
         email: 'auditor@company.com',
-        password: 'auditor123',
+        password: hashPassword('auditor123'),
         name: '陳美玲',
         role: 'Auditor',
         department: '法務與合約稽核室',
@@ -213,16 +297,18 @@ function isWorkday(dateStr, holidays) {
 
 function getPreviousWorkday(dateStr, holidays) {
   let curr = new Date(dateStr);
-  while (true) {
-    const yyyy = curr.getFullYear();
-    const mm = String(curr.getMonth() + 1).padStart(2, '0');
-    const dd = String(curr.getDate()).padStart(2, '0');
-    const iso = `${yyyy}-${mm}-${dd}`;
+  const MAX_ITERATIONS = 365; // Safety limit to prevent infinite loop
+  let iterations = 0;
+  while (iterations < MAX_ITERATIONS) {
+    const iso = formatDateISO(curr);
     if (isWorkday(iso, holidays)) {
       return iso;
     }
     curr.setDate(curr.getDate() - 1);
+    iterations++;
   }
+  // Fallback: return original date if no workday found within safety range
+  return dateStr;
 }
 
 // API Routes
@@ -234,6 +320,11 @@ app.get('/api/projects', (req, res) => {
 });
 
 app.post('/api/projects', (req, res) => {
+  // Input validation
+  const { projectName, projectCode } = req.body;
+  if (!projectName && !projectCode && !req.body.id) {
+    return res.status(400).json({ error: '至少需提供專案名稱或專案代碼' });
+  }
   const projects = readJson(PROJECTS_FILE, []);
   const newProj = {
     id: req.body.id || `PRJ-${Date.now()}`,
@@ -428,36 +519,48 @@ app.post('/api/schedules/:id/mark-submitted', (req, res) => {
 });
 
 function extractTextFromDocx(filePath) {
-  try {
-    const tempZip = filePath + '_' + Date.now() + '.zip';
-    fs.copyFileSync(filePath, tempZip);
-    const destDir = path.join(path.dirname(filePath), 'temp_unzip_' + Date.now());
-    const psCmd = `powershell -Command "Expand-Archive -Path '${tempZip.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force"`;
-    require('child_process').execSync(psCmd, { stdio: 'ignore' });
-    
-    const docXmlPath = path.join(destDir, 'word', 'document.xml');
-    let xml = '';
-    if (fs.existsSync(docXmlPath)) {
-      xml = fs.readFileSync(docXmlPath, 'utf8');
-    }
-    
+  return new Promise((resolve) => {
     try {
-      fs.rmSync(tempZip, { force: true });
-      fs.rmSync(destDir, { recursive: true, force: true });
-    } catch (e) {}
+      const tempZip = filePath + '_' + Date.now() + '.zip';
+      fs.copyFileSync(filePath, tempZip);
+      const destDir = path.join(path.dirname(filePath), 'temp_unzip_' + Date.now());
+      const psCmd = `powershell -Command "Expand-Archive -Path '${tempZip.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force"`;
+      
+      // Use async exec instead of blocking execSync
+      require('child_process').exec(psCmd, { timeout: 30000 }, (error) => {
+        if (error) {
+          logError('DOCX_EXTRACT', error, { filePath });
+          resolve('');
+          return;
+        }
+        
+        const docXmlPath = path.join(destDir, 'word', 'document.xml');
+        let xml = '';
+        if (fs.existsSync(docXmlPath)) {
+          xml = fs.readFileSync(docXmlPath, 'utf8');
+        }
+        
+        // Cleanup temp files
+        try {
+          fs.rmSync(tempZip, { force: true });
+          fs.rmSync(destDir, { recursive: true, force: true });
+        } catch (e) {}
 
-    return xml
-      .replace(/<\/w:p>/g, '\n')
-      .replace(/<\/w:tr>/g, '\n===ROW===\n')
-      .replace(/<\/w:tc>/g, ' [CELL] ')
-      .replace(/<[^>]+>/g, '')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;/g, '"');
-  } catch (err) {
-    return '';
-  }
+        resolve(xml
+          .replace(/<\/w:p>/g, '\n')
+          .replace(/<\/w:tr>/g, '\n===ROW===\n')
+          .replace(/<\/w:tc>/g, ' [CELL] ')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"'));
+      });
+    } catch (err) {
+      logError('DOCX_EXTRACT', err, { filePath });
+      resolve('');
+    }
+  });
 }
 
 const ERROR_LOG_FILE = path.join(DATA_DIR, 'error.log');
@@ -474,12 +577,12 @@ function logError(source, error, extra = {}) {
   } catch (e) {}
 }
 
-function parseDocumentItems(filePath, fileName, dDayStr) {
+async function parseDocumentItems(filePath, fileName, dDayStr) {
   let text = '';
   const ext = path.extname(fileName).toLowerCase();
 
   if (ext === '.docx') {
-    text = extractTextFromDocx(filePath);
+    text = await extractTextFromDocx(filePath);
   } else {
     try {
       if (fs.existsSync(filePath)) {
@@ -608,7 +711,7 @@ app.get('/api/logs/errors', (req, res) => {
 });
 
 // Document Extraction & Upload
-app.post('/api/documents/extract', upload.single('file'), (req, res) => {
+app.post('/api/documents/extract', upload.single('file'), async (req, res) => {
   try {
     let filePath = req.file ? req.file.path : '';
     let fileName = req.file ? req.file.originalname : 'uploaded_file';
@@ -622,7 +725,7 @@ app.post('/api/documents/extract', upload.single('file'), (req, res) => {
       }
     }
 
-    const extractedItems = parseDocumentItems(filePath, fileName, dDayStr);
+    const extractedItems = await parseDocumentItems(filePath, fileName, dDayStr);
 
     res.json({
       fileName,
@@ -702,9 +805,12 @@ app.post('/api/notifications/logs/clear', (req, res) => {
 // Authentication & RBAC APIs
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: '請輸入帳號與密碼' });
+  }
   const users = readJson(USERS_FILE, []);
-  const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase() && u.password === password);
-  if (!user) {
+  const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
+  if (!user || !verifyPassword(password, user.password)) {
     return res.status(401).json({ success: false, message: '帳號或密碼錯誤 (Invalid email or password)' });
   }
   if (user.status === 'inactive') {
@@ -766,7 +872,7 @@ app.post('/api/users', (req, res) => {
     id: `usr-${Date.now()}`,
     email: email.trim(),
     name: name.trim(),
-    password: password || '123456',
+    password: hashPassword(password || '123456'),
     role: role || 'PM',
     department: department || '專案團隊',
     title: title || '團隊成員',
@@ -820,7 +926,7 @@ app.post('/api/users/import-contacts', (req, res) => {
         id: `usr-${Date.now()}-${idx}`,
         email: c.email,
         name: c.name,
-        password: '123456',
+        password: hashPassword('123456'),
         role: 'PM',
         department: c.department || '專案團隊',
         title: c.title || '團隊成員',
@@ -1196,6 +1302,11 @@ const handleOutlookMeetingDispatch = async (req, res) => {
 app.post('/api/notifications/send-outlook-meeting', handleOutlookMeetingDispatch);
 app.post('/api/notifications/send-teams-outlook', handleOutlookMeetingDispatch);
 
+// API 404 handler — must be before frontend catch-all
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.originalUrl}` });
+});
+
 // Serve Frontend Static Bundle if Built
 const FRONTEND_DIST = path.join(__dirname, 'frontend', 'dist');
 if (fs.existsSync(FRONTEND_DIST)) {
@@ -1204,6 +1315,20 @@ if (fs.existsSync(FRONTEND_DIST)) {
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
 }
+
+// Global error handler — catches unhandled exceptions in route handlers
+app.use((err, req, res, next) => {
+  logError('EXPRESS_GLOBAL', err, { method: req.method, url: req.originalUrl });
+  res.status(500).json({ error: '伺服器內部錯誤 (Internal Server Error)', message: err.message });
+});
+
+// Graceful shutdown
+process.on('uncaughtException', (err) => {
+  logError('UNCAUGHT_EXCEPTION', err);
+});
+process.on('unhandledRejection', (reason) => {
+  logError('UNHANDLED_REJECTION', reason);
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Report Reminder System Express Server running at http://localhost:${PORT}`);

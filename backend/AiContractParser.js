@@ -67,16 +67,39 @@ class AiContractParser {
       // Find matching text snippet in uploaded document
       const matchingLine = lines.find(l => l.includes(template.keyword) || l.includes(template.title));
       
+      // Per-template independent offset search (not shared global match)
       let dayOffset = template.defaultOffset;
+      let confidenceScore = 50; // Base confidence if no text match
+
       if (cleanText) {
-        const offsetReg = new RegExp(`(?:D\\+|第|簽約後)\\s*(\\d+)\\s*(?:日|天|個月)`);
-        const match = cleanText.match(offsetReg);
-        if (match && match[1]) {
+        // Search for offset near the keyword context for this specific template
+        const keywordIdx = cleanText.indexOf(template.keyword);
+        const contextRadius = 300; // characters around keyword to search
+        let contextText = cleanText;
+        
+        if (keywordIdx >= 0) {
+          const start = Math.max(0, keywordIdx - contextRadius);
+          const end = Math.min(cleanText.length, keywordIdx + contextRadius);
+          contextText = cleanText.substring(start, end);
+          confidenceScore = 85; // Keyword found in document
+        }
+
+        // Search for D+N or date offset patterns in the context
+        const offsetReg = /(?:D\+|第|簽約後)\s*(\d+)\s*(?:日|天|個月)/g;
+        let match;
+        while ((match = offsetReg.exec(contextText)) !== null) {
           const parsedDays = parseInt(match[1], 10);
           if (!isNaN(parsedDays) && parsedDays > 0) {
             dayOffset = parsedDays;
+            confidenceScore = Math.min(98, confidenceScore + 10); // Higher confidence with offset match
+            break; // Use the first match near this keyword
           }
         }
+      }
+
+      // Boost confidence if exact matching line found
+      if (matchingLine) {
+        confidenceScore = Math.min(98, confidenceScore + 5);
       }
 
       extractedItems.push({
@@ -87,7 +110,7 @@ class AiContractParser {
         deliverables: template.deliverables,
         penaltyTerms: template.penaltyTerms,
         clauseReference: template.clauseReference,
-        confidence: 95,
+        confidence: confidenceScore,
         selected: true
       });
     });

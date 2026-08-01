@@ -183,17 +183,17 @@ export const Navbar: React.FC<Props> = ({
                   right: 0,
                   top: 'calc(100% + 0.5rem)',
                   width: '260px',
-                  background: 'rgba(15, 23, 42, 0.95)',
+                  background: 'var(--dropdown-bg)',
                   backdropFilter: 'blur(20px)',
                   WebkitBackdropFilter: 'blur(20px)',
                   border: '1px solid var(--surface-glass-border)',
                   borderRadius: 'var(--radius-md)',
-                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+                  boxShadow: '0 12px 32px rgba(15, 23, 42, 0.15), var(--shadow-glow)',
                   padding: '0.5rem',
                   zIndex: 100,
                 }}
               >
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, padding: '0.4rem 0.6rem 0.25rem', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '0.35rem' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, padding: '0.4rem 0.6rem 0.25rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.35rem' }}>
                   組態與系統日誌模組 (SYSTEM & LOGS)
                 </div>
 
@@ -218,10 +218,10 @@ export const Navbar: React.FC<Props> = ({
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <Calendar size={17} color="#818cf8" />
+                  <Calendar size={17} color="#4f46e5" />
                   <div>
                     <div style={{ fontSize: '0.825rem', fontWeight: 700 }}>排程與通知發送日誌</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>背景 Scan 掃描與歷史紀錄</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>背景 Scan 掃描與歷史紀錄</div>
                   </div>
                 </button>
 
@@ -246,10 +246,10 @@ export const Navbar: React.FC<Props> = ({
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <ShieldCheck size={17} color="#34d399" />
+                  <ShieldCheck size={17} color="#059669" />
                   <div>
                     <div style={{ fontSize: '0.825rem', fontWeight: 700 }}>DGPA 國定假日行事曆</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>政府辦公日曆與補班日運算</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>政府辦公日曆與補班日運算</div>
                   </div>
                 </button>
 
@@ -274,14 +274,14 @@ export const Navbar: React.FC<Props> = ({
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <Users size={17} color="#60a5fa" />
+                  <Users size={17} color="#2563eb" />
                   <div>
                     <div style={{ fontSize: '0.825rem', fontWeight: 700 }}>Outlook 企業通訊錄</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>匯入與管理成員 Email</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>匯入與管理成員 Email</div>
                   </div>
                 </button>
 
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', margin: '0.35rem 0' }} />
+                <div style={{ borderTop: '1px solid #e2e8f0', margin: '0.35rem 0' }} />
 
                 <button
                   onClick={() => {
@@ -295,7 +295,7 @@ export const Navbar: React.FC<Props> = ({
                     background: 'transparent',
                     border: 'none',
                     borderRadius: 'var(--radius-sm)',
-                    color: '#ef4444',
+                    color: '#dc2626',
                     textAlign: 'left',
                     cursor: 'pointer',
                     display: 'flex',
@@ -304,10 +304,10 @@ export const Navbar: React.FC<Props> = ({
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <Terminal size={17} color="#ef4444" />
+                  <Terminal size={17} color="#dc2626" />
                   <div>
                     <div style={{ fontSize: '0.825rem', fontWeight: 700 }}>Error Logs 診斷台</div>
-                    <div style={{ fontSize: '0.7rem', color: '#fca5a5' }}>後端例外與系統診斷 Console</div>
+                    <div style={{ fontSize: '0.7rem', color: '#ef4444' }}>後端例外與系統診斷 Console</div>
                   </div>
                 </button>
               </div>
@@ -348,17 +348,17 @@ export const Navbar: React.FC<Props> = ({
                   right: 0,
                   top: 'calc(100% + 0.5rem)',
                   width: '270px',
-                  background: 'rgba(15, 23, 42, 0.95)',
+                  background: 'var(--dropdown-bg)',
                   backdropFilter: 'blur(20px)',
                   WebkitBackdropFilter: 'blur(20px)',
                   border: '1px solid var(--surface-glass-border)',
                   borderRadius: 'var(--radius-md)',
-                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+                  boxShadow: '0 12px 32px rgba(15, 23, 42, 0.15), var(--shadow-glow)',
                   padding: '0.5rem',
                   zIndex: 100,
                 }}
               >
-                <div style={{ padding: '0.5rem 0.65rem 0.6rem', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '0.35rem' }}>
+                <div style={{ padding: '0.5rem 0.65rem 0.6rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.35rem' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>當前登入帳號 (SESSION)</div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.15rem' }}>
                     {currentUser.name}
@@ -389,10 +389,10 @@ export const Navbar: React.FC<Props> = ({
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <KeyRound size={17} color="#38bdf8" />
+                  <KeyRound size={17} color="#0284c7" />
                   <div>
                     <div style={{ fontSize: '0.825rem', fontWeight: 700 }}>切換使用者身份</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>JWT 登入與快速帳號切換</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>JWT 登入與快速帳號切換</div>
                   </div>
                 </button>
 
@@ -417,10 +417,10 @@ export const Navbar: React.FC<Props> = ({
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <Shield size={17} color="#c084fc" />
+                  <Shield size={17} color="#9333ea" />
                   <div>
                     <div style={{ fontSize: '0.825rem', fontWeight: 700 }}>使用者與角色權限維護</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>帳號 CRUD 與 Role 權限矩陣</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>帳號 CRUD 與 Role 權限矩陣</div>
                   </div>
                 </button>
               </div>

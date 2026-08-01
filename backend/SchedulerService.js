@@ -3,6 +3,14 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 
+// Shared date formatting helper
+function formatDateISO(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 class SchedulerService {
   constructor(dataDir) {
     this.dataDir = dataDir || path.join(__dirname, '..', 'data');
@@ -89,24 +97,23 @@ class SchedulerService {
 
   getPreviousWorkday(dateStr, holidays) {
     let curr = new Date(dateStr);
-    while (true) {
-      const yyyy = curr.getFullYear();
-      const mm = String(curr.getMonth() + 1).padStart(2, '0');
-      const dd = String(curr.getDate()).padStart(2, '0');
-      const iso = `${yyyy}-${mm}-${dd}`;
+    const MAX_ITERATIONS = 365; // Safety limit
+    let iterations = 0;
+    while (iterations < MAX_ITERATIONS) {
+      const iso = formatDateISO(curr);
       if (this.isWorkday(iso, holidays)) {
         return iso;
       }
       curr.setDate(curr.getDate() - 1);
+      iterations++;
     }
+    // Fallback to original date if no workday found
+    return dateStr;
   }
 
   async runScanAndNotify() {
     const now = new Date();
-    const todayYyyy = now.getFullYear();
-    const todayMm = String(now.getMonth() + 1).padStart(2, '0');
-    const todayDd = String(now.getDate()).padStart(2, '0');
-    const todayStr = `${todayYyyy}-${todayMm}-${todayDd}`;
+    const todayStr = formatDateISO(now);
 
     this.lastScanTime = now.toISOString();
 
@@ -124,64 +131,66 @@ class SchedulerService {
       const dDay = new Date(dDayStr);
 
       for (const rule of project.rules) {
-        if (!rule.enabled || rule.isCompleted) continue;
+        try {
+          if (!rule.enabled || rule.isCompleted) continue;
 
-        // Raw target date
-        const rawTarget = new Date(dDay);
-        rawTarget.setDate(rawTarget.getDate() + rule.dayOffset);
-        const rawY = rawTarget.getFullYear();
-        const rawM = String(rawTarget.getMonth() + 1).padStart(2, '0');
-        const rawD = String(rawTarget.getDate()).padStart(2, '0');
-        const rawTargetStr = `${rawY}-${rawM}-${rawD}`;
+          // Raw target date
+          const rawTarget = new Date(dDay);
+          rawTarget.setDate(rawTarget.getDate() + rule.dayOffset);
+          const rawTargetStr = formatDateISO(rawTarget);
 
-        // Adjusted target business date after holidays
-        const adjustedTargetStr = this.getPreviousWorkday(rawTargetStr, holidays);
+          // Adjusted target business date after holidays
+          const adjustedTargetStr = this.getPreviousWorkday(rawTargetStr, holidays);
 
-        // Advance notice days list (e.g. [1, 3, 7, 14])
-        const noticeDaysList = project.advanceNoticeDaysList || [project.advanceNoticeDays || 3];
+          // Advance notice days list (e.g. [1, 3, 7, 14])
+          const noticeDaysList = project.advanceNoticeDaysList || [project.advanceNoticeDays || 3];
 
-        // Calculate notice trigger dates
-        const triggerDates = noticeDaysList.map(days => {
-          const dt = new Date(adjustedTargetStr);
-          dt.setDate(dt.getDate() - days);
-          return this.getPreviousWorkday(dt.toISOString().split('T')[0], holidays);
-        });
+          // Calculate notice trigger dates
+          const triggerDates = noticeDaysList.map(days => {
+            const dt = new Date(adjustedTargetStr);
+            dt.setDate(dt.getDate() - days);
+            return this.getPreviousWorkday(dt.toISOString().split('T')[0], holidays);
+          });
 
-        const isOverdue = todayStr > adjustedTargetStr;
-        const isTriggerDay = triggerDates.includes(todayStr) || todayStr === adjustedTargetStr;
+          const isOverdue = todayStr > adjustedTargetStr;
+          const isTriggerDay = triggerDates.includes(todayStr) || todayStr === adjustedTargetStr;
 
-        if (isTriggerDay || isOverdue) {
-          notifyCount++;
+          if (isTriggerDay || isOverdue) {
+            notifyCount++;
 
-          const logItem = {
-            id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            timestamp: new Date().toISOString(),
-            projectId: project.id,
-            projectCode: project.projectCode || 'PRJ',
-            projectName: project.projectName || '專案',
-            ruleId: rule.id,
-            reportTitle: rule.title,
-            deadlineDate: adjustedTargetStr,
-            owners: rule.owners || [],
-            triggerType: isOverdue ? 'Overdue' : (todayStr === adjustedTargetStr ? 'DueToday' : 'AdvanceNotice'),
-            status: 'Success',
-            channel: project.teamsWebhookUrl ? 'Teams+Outlook' : 'Outlook',
-            message: isOverdue 
-              ? `⚠️ 報告 [${rule.title}] 已逾期 (原定死線: ${adjustedTargetStr})`
-              : `🔔 報告 [${rule.title}] 預警提醒 (死線: ${adjustedTargetStr})`
-          };
+            const logItem = {
+              id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              timestamp: new Date().toISOString(),
+              projectId: project.id,
+              projectCode: project.projectCode || 'PRJ',
+              projectName: project.projectName || '專案',
+              ruleId: rule.id,
+              reportTitle: rule.title,
+              deadlineDate: adjustedTargetStr,
+              owners: rule.owners || [],
+              triggerType: isOverdue ? 'Overdue' : (todayStr === adjustedTargetStr ? 'DueToday' : 'AdvanceNotice'),
+              status: 'Success',
+              channel: project.teamsWebhookUrl ? 'Teams+Outlook' : 'Outlook',
+              message: isOverdue 
+                ? `⚠️ 報告 [${rule.title}] 已逾期 (原定死線: ${adjustedTargetStr})`
+                : `🔔 報告 [${rule.title}] 預警提醒 (死線: ${adjustedTargetStr})`
+            };
 
-          // Dispatch MS Teams Webhook if URL exists
-          if (project.teamsWebhookUrl) {
-            try {
-              await this.sendTeamsWebhook(project.teamsWebhookUrl, logItem);
-            } catch (err) {
-              logItem.status = 'PartialFailed';
-              logItem.message += ` (Teams Webhook 發送失敗: ${err.message})`;
+            // Dispatch MS Teams Webhook if URL exists
+            if (project.teamsWebhookUrl) {
+              try {
+                await this.sendTeamsWebhook(project.teamsWebhookUrl, logItem);
+              } catch (err) {
+                logItem.status = 'PartialFailed';
+                logItem.message += ` (Teams Webhook 發送失敗: ${err.message})`;
+              }
             }
-          }
 
-          logs.unshift(logItem);
+            logs.unshift(logItem);
+          }
+        } catch (ruleError) {
+          // Independent error handling per rule — one failing rule doesn't block others
+          console.error(`⚠️ Error scanning rule [${rule.id}] in project [${project.id}]:`, ruleError.message);
         }
       }
     }
@@ -225,11 +234,16 @@ class SchedulerService {
           headers: {
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(postData)
-          }
+          },
+          timeout: 30000 // 30 second timeout
         }, (res) => {
           resolve(res.statusCode);
         });
 
+        req.on('timeout', () => {
+          req.destroy();
+          reject(new Error('Teams Webhook request timed out after 30s'));
+        });
         req.on('error', reject);
         req.write(postData);
         req.end();

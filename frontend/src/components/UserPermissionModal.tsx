@@ -352,7 +352,7 @@ export const UserPermissionModal: React.FC<Props> = ({
             style={{
               background: activeTab === 'users' ? 'var(--accent-gradient)' : 'transparent',
               border: 'none',
-              color: '#ffffff',
+              color: activeTab === 'users' ? '#ffffff' : 'var(--text-secondary)',
               padding: '0.55rem 1.25rem',
               borderRadius: 'var(--radius-sm)',
               fontSize: '0.9rem',
@@ -423,10 +423,10 @@ export const UserPermissionModal: React.FC<Props> = ({
             </div>
 
             {/* User List Table */}
-            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--surface-glass-border)', borderRadius: 'var(--radius-md)', background: 'rgba(15, 23, 42, 0.4)' }}>
+            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--surface-glass-border)', borderRadius: 'var(--radius-md)', background: '#ffffff' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ background: 'rgba(30, 41, 59, 0.7)', borderBottom: '1px solid var(--surface-glass-border)', color: 'var(--text-muted)' }}>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: 'var(--text-secondary)' }}>
                     <th style={{ padding: '0.75rem', width: '40px', textAlign: 'center' }}>
                       <input
                         type="checkbox"
@@ -457,7 +457,7 @@ export const UserPermissionModal: React.FC<Props> = ({
                       const isSelected = selectedUserIds.includes(u.id);
 
                       return (
-                        <tr key={u.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', background: isSelected ? 'rgba(99, 102, 241, 0.1)' : 'transparent' }}>
+                        <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0', background: isSelected ? 'rgba(99, 102, 241, 0.08)' : 'transparent' }}>
                           <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                             <input
                               type="checkbox"
@@ -592,7 +592,7 @@ export const UserPermissionModal: React.FC<Props> = ({
                         <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>指派角色群組</label>
                         <select
                           className="input-glass"
-                          style={{ width: '100%', fontSize: '0.85rem', background: '#1e293b' }}
+                          style={{ width: '100%', fontSize: '0.85rem' }}
                           value={formRole}
                           onChange={(e) => setFormRole(e.target.value)}
                         >
@@ -658,10 +658,10 @@ export const UserPermissionModal: React.FC<Props> = ({
             </div>
 
             {/* Matrix Table */}
-            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--surface-glass-border)', borderRadius: 'var(--radius-md)', background: 'rgba(15, 23, 42, 0.4)' }}>
+            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--surface-glass-border)', borderRadius: 'var(--radius-md)', background: '#ffffff' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ background: 'rgba(30, 41, 59, 0.8)', borderBottom: '1px solid var(--surface-glass-border)', color: 'var(--text-primary)' }}>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#334155' }}>
                     <th style={{ padding: '0.75rem 1rem', width: '180px' }}>功能分類 / 權限點</th>
                     <th style={{ padding: '0.75rem 1rem' }}>說明</th>
                     {roles.map((r) => {
@@ -683,7 +683,7 @@ export const UserPermissionModal: React.FC<Props> = ({
                             {!r.isSystem && (
                               <button
                                 onClick={() => handleDeleteRole(r)}
-                                style={{ background: 'none', border: 'none', color: '#f87171', fontSize: '0.7rem', cursor: 'pointer', marginTop: '0.1rem' }}
+                                style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.7rem', cursor: 'pointer', marginTop: '0.1rem' }}
                               >
                                 刪除角色
                               </button>
@@ -696,7 +696,7 @@ export const UserPermissionModal: React.FC<Props> = ({
                 </thead>
                 <tbody>
                   {PERMISSION_DEFINITIONS.map((perm, idx) => (
-                    <tr key={perm.code} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', background: idx % 2 === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.015)' }}>
+                    <tr key={perm.code} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                       <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                         <div style={{ fontSize: '0.7rem', color: 'var(--accent-secondary)' }}>{perm.category}</div>
                         {perm.name}
@@ -724,9 +724,9 @@ export const UserPermissionModal: React.FC<Props> = ({
                               }}
                             >
                               {hasPerm ? (
-                                <CheckSquare size={20} color="#34d399" />
+                                <CheckSquare size={20} color="#059669" />
                               ) : (
-                                <Square size={20} color="var(--text-muted)" />
+                                <Square size={20} color="#cbd5e1" />
                               )}
                             </button>
                           </td>

@@ -1,3 +1,4 @@
+/** Multi-role project team member */
 export interface ProjectOwner {
   id?: string;
   role: string; // e.g. 'PM', '業務', 'SA', 'PG', 'QA', '架構師', '窗口'
@@ -5,6 +6,7 @@ export interface ProjectOwner {
   email: string;
 }
 
+/** Core project entity */
 export interface Project {
   id: string;
   code: string;
@@ -54,14 +56,17 @@ export interface ScheduleItem {
   clauseReference?: string;
 }
 
+/** DGPA holiday / make-up workday entry */
 export interface Holiday {
   id: string;
   date: string; // YYYY-MM-DD
   name: string;
-  isHoliday: boolean; // true for National Holiday, false for Make-up Workday
+  /** true = national/public holiday (day off); false = make-up workday (補班日, working) */
+  isHoliday: boolean;
   category: 'DGPA' | 'Custom';
   description?: string;
-  isWorkday?: boolean; // true for Make-up Workday (補班日)
+  /** true = this date IS a valid working day (even if on a weekend, e.g. 補班日). Inverse of isHoliday in most cases. */
+  isWorkday?: boolean;
 }
 
 export interface Contact {
@@ -162,7 +167,8 @@ export interface RoleItem {
   updatedAt?: string;
 }
 
-export type UserRole = string;
+/** Built-in roles: Admin, PM, Auditor. Custom roles use arbitrary strings. */
+export type UserRole = 'Admin' | 'PM' | 'Auditor' | (string & {});
 
 export interface UserItem {
   id: string;

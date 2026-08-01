@@ -1,17 +1,18 @@
 # 📊 專案履約報告繳交提醒與 Outlook 會議發布系統 (Report Submission Reminder System)
 
-本系統為專為政府與企業軟體專案設計的 **履約里程碑與 Outlook 會議預約發布引擎**。系統機能自動依據合約/專案開工日 (D-Day) 推算各階段報告繳交死線，自動避開行政院人事行政總處 (DGPA) 辦公日曆表之例假日與國定假日、正確識別彈性補班日，提供每日 **09:00 AM 背景自動定時排程通知與發送日誌中心**，並整合 **AI 標案合約五維度深度解析與互動預覽對話盒**、**🔐 多角色權限控管 (RBAC) 與 JWT 登入機制**、**👤 使用者帳號與自訂權限矩陣維護中心**、Microsoft Outlook 會議預約信件發布與多角色專案團隊管理。
+本系統為專為政府與企業軟體專案設計的 **履約里程碑與 Outlook 會議預約發布引擎**。系統機能自動依據合約/專案開工日 (D-Day) 推算各階段報告繳交死線，自動避開行政院人事行政總處 (DGPA) 辦公日曆表之例假日與國定假日、正確識別彈性補班日，提供每日 **09:00 AM 背景自動定時排程通知與發送日誌中心**，並整合 **AI 標案合約五維度深度解析與互動預覽對話盒**、**🔐 多角色權限控管 (RBAC) 與密碼 Hash 安全加固機制**、**👤 使用者帳號與自訂權限矩陣維護中心**、Microsoft Outlook 會議預約信件發布與多角色專案團隊管理。
 
 ---
 
 ## 🌟 系統主要特色
 
-- 🔐 **多角色權限控管 (RBAC) 與 JWT 登入驗證引擎 (`authMiddleware`)**：
+- 🔐 **多角色權限控管 (RBAC) 與密碼 Hash 安全加固 (`authMiddleware`)**：
   - **三層級權限防護矩陣**：
     - 👑 **Admin (系統最高管理員)**：全權存取 (全刪寫權限、專案管理、DGPA 行事曆維護、使用者與權限矩陣維護、背景排程觸發與 Log 清空)。
     - 💼 **PM (專案經理)**：專案營運權限 (D-Day 修改、履約報告編輯/產出物維護、合約解析上傳、Outlook 邀請派發與標記繳交)。
     - 👁️ **Auditor (合約審核員/查核人員)**：純唯讀觀看權限 (履約時間軸瀏覽、.ics 下載、排程發送日誌審視，自動停用所有寫入/刪除按鈕)。
-  - **JWT Bearer Token 簽署**：登入驗證發放加密 Token，後端 Middleware 全面保護敏感 API 端點。
+  - **密碼 Hash 加密與防護**：後端全面使用 HMAC-SHA256 加鹽雜湊演算法 (`hashPassword()`) 持久化使用者密碼，摒棄明文儲存，支援安全時序比對 (Timing-Safe Comparison)。
+  - **JWT Bearer Token 簽署**：登入驗證發放加密 Token，後端 Middleware 全面保護敏感 API 端點，`fetchApi` 自動注入 Token 授權標頭。
   - **頂部動態 Role Badge 與帳號切換對話盒 (`UserAuthModal`)**：提供一鍵切換預設測試帳號與即時角色警示徽章。
 - 👤 **帳號與權限矩陣維護中心 (`UserPermissionModal`)**：
   - **使用者帳號全功能 CRUD**：管理員可新增、編輯、刪除系統使用者帳號，並重設密碼與變更角色。
@@ -45,16 +46,17 @@
   - 在履約里程碑規則與報告編輯視窗中，提供專案團隊角色「一鍵多選/全選」快速挑選功能。
 - 🔄 **雙向狀態管理（標記為已繳交 / 改為未繳交）**：
   - 靈活切換里程碑報告之繳交狀態，即時更新儀表板與時間軸進度。
-- 🎨 **明亮現代質感 UI (Bright Modern Light Theme)**：
+- 🎨 **明亮現代質感 UI 與 Dropdown 高對比配色 (Bright Modern Light Theme)**：
   - 採用高閱讀性 Light Slate 色彩系統、Glassmorphism 視覺設計與極致微動畫。
+  - 全數下拉選單（包含頂部導覽選單與全系統 `<select>` / `<option>`）進行高對比白底黑字與紫色選中樣式優化，解決深色模式下文字不可見之體驗瑕疵。
 
 ---
 
 ## 🛠️ 技術架構 (Tech Stack)
 
-- **前端 (Frontend)**：React 18, TypeScript, Vite 5.x, Lucide React (圖示庫), Vanilla CSS (Design Tokens & CSS Variables)
-- **後端 (Backend)**：Node.js Express 4.x, Multer, authMiddleware (RBAC JWT 驗證), AiContractParser (五維度合約解析服務), SchedulerService (常駐背景排程器), C# .NET API/Tests 相容層 (`ReportReminder.Api`, `ReportReminder.Tests`)
-- **資料儲存 (Data Storage)**：JSON 檔案儲存庫 (位於 `./data/` 目錄，包含 `projects.json`, `holidays.json`, `contacts.json`, `notification_logs.json`, `users.json`, `roles.json`)
+- **前端 (Frontend)**：React 18, TypeScript, Vite 5.x, Lucide React (圖示庫), Vanilla CSS (Design Tokens & CSS Variables), `mockData.ts` 離線模組, `fetchApi` 歸一化請求層
+- **後端 (Backend)**：Node.js Express 4.x, Multer, `authMiddleware` (RBAC JWT 驗證與密碼 Hash 雜湊), `AiContractParser` (五維度合約解析服務), `SchedulerService` (常駐背景排程器), C# .NET API/Tests 相容層 (`ReportReminder.Api`, `ReportReminder.Tests`)
+- **資料儲存 (Data Storage)**：JSON 檔案儲存庫與記憶體寫入快取 (位於 `./data/` 目錄，包含 `projects.json`, `holidays.json`, `contacts.json`, `notification_logs.json`, `users.json`, `roles.json`)
 
 ---
 
@@ -174,7 +176,7 @@ node test_scenarios.js
 ```text
 report_reminder_system/
 ├── backend/                  # 後端模組與常駐服務
-│   ├── authMiddleware.js     # RBAC 角色權限控管與 JWT 驗證
+│   ├── authMiddleware.js     # RBAC 角色權限控管、JWT 驗證與密碼 Hash
 │   ├── AiContractParser.js   # AI 雙軌合約五維度深度解析引擎
 │   ├── SchedulerService.js   # 背景自動定時排程與通知發送引擎
 │   ├── ReportReminder.Api/   # C# .NET API 擴充介面與服務
@@ -210,7 +212,10 @@ report_reminder_system/
 │   │   │   ├── TeamsCardModal.tsx         # MS Teams 提醒卡片發送 Modal
 │   │   │   ├── UserAuthModal.tsx          # 帳號登入與切換對話盒
 │   │   │   └── UserPermissionModal.tsx    # 使用者與權限矩陣維護對話盒
-│   │   ├── services/         # API 通訊與歸一化服務 (api.ts)
+│   │   ├── services/         # API 通訊與數據處理服務
+│   │   │   ├── api.ts        # 歸一化 fetchApi 服務層與網路通訊邏輯
+│   │   │   ├── mockData.ts   # 離線/Fallback 模組化資料集
+│   │   │   └── logger.ts     # 前前端系統 Log 紀錄與診斷服務
 │   │   ├── types.ts          # TypeScript 型別定義 (包含 UserRole & UserSession)
 │   │   ├── App.tsx           # 主頁面入口元件
 │   │   ├── main.tsx          # 前端入口點

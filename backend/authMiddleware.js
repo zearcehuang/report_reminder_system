@@ -12,6 +12,18 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const ROLES_FILE = path.join(DATA_DIR, 'roles.json');
 
+// Warn if using default JWT secret in production
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  [SECURITY] JWT_SECRET is using default fallback key. Set JWT_SECRET environment variable for production.');
+}
+
+// TTL-based memory cache to avoid reading files on every request
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds
+const cache = {
+  users: { data: null, timestamp: 0 },
+  roles: { data: null, timestamp: 0 }
+};
+
 // Helper to read JSON
 function readJson(filePath, defaultValue) {
   try {
@@ -22,12 +34,20 @@ function readJson(filePath, defaultValue) {
   }
 }
 
-// Get dynamic Users array
+// Get dynamic Users array (with TTL cache)
 function getUsers() {
+  const now = Date.now();
+  if (cache.users.data && (now - cache.users.timestamp) < CACHE_TTL_MS) {
+    return cache.users.data;
+  }
   const users = readJson(USERS_FILE, null);
-  if (users && users.length > 0) return users;
+  if (users && users.length > 0) {
+    cache.users.data = users;
+    cache.users.timestamp = now;
+    return users;
+  }
   // Default fallback
-  return [
+  const defaultUsers = [
     {
       id: 'usr-admin-1',
       email: 'admin@company.com',
@@ -59,13 +79,24 @@ function getUsers() {
       status: 'active'
     }
   ];
+  cache.users.data = defaultUsers;
+  cache.users.timestamp = now;
+  return defaultUsers;
 }
 
-// Get dynamic Roles array
+// Get dynamic Roles array (with TTL cache)
 function getRoles() {
+  const now = Date.now();
+  if (cache.roles.data && (now - cache.roles.timestamp) < CACHE_TTL_MS) {
+    return cache.roles.data;
+  }
   const roles = readJson(ROLES_FILE, null);
-  if (roles && roles.length > 0) return roles;
-  return [
+  if (roles && roles.length > 0) {
+    cache.roles.data = roles;
+    cache.roles.timestamp = now;
+    return roles;
+  }
+  const defaultRoles = [
     {
       id: 'role-admin',
       name: 'Admin',
@@ -88,6 +119,9 @@ function getRoles() {
       permissions: ['projects:read', 'schedules:submit']
     }
   ];
+  cache.roles.data = defaultRoles;
+  cache.roles.timestamp = now;
+  return defaultRoles;
 }
 
 // Helper: base64url encode
@@ -129,11 +163,18 @@ function generateToken(user) {
 
 // Verify JWT Token
 function verifyToken(token) {
-  if (!token) return null;
+  if (!token || typeof token !== 'string') return null;
   const parts = token.split('.');
   if (parts.length !== 3) return null;
 
   const [encodedHeader, encodedPayload, signature] = parts;
+  
+  // Validate base64url format before processing
+  const base64urlRegex = /^[A-Za-z0-9_-]+$/;
+  if (!base64urlRegex.test(encodedHeader) || !base64urlRegex.test(encodedPayload) || !base64urlRegex.test(signature)) {
+    return null;
+  }
+
   const expectedSignature = crypto
     .createHmac('sha256', JWT_SECRET)
     .update(`${encodedHeader}.${encodedPayload}`)
@@ -142,7 +183,13 @@ function verifyToken(token) {
     .replace(/\+/g, '-')
     .replace(/\//g, '_');
 
-  if (signature !== expectedSignature) return null;
+  // Use timing-safe comparison to prevent timing attacks
+  if (signature.length !== expectedSignature.length) return null;
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) return null;
+  } catch {
+    if (signature !== expectedSignature) return null;
+  }
 
   try {
     const payloadStr = Buffer.from(encodedPayload, 'base64').toString('utf8');
@@ -221,5 +268,11 @@ module.exports = {
   verifyToken,
   authenticateUser,
   requireRole,
-  requirePermission
+  requirePermission,
+  // Expose cache invalidation for use when users/roles are modified
+  invalidateCache(type) {
+    if (type === 'users') { cache.users.data = null; cache.users.timestamp = 0; }
+    if (type === 'roles') { cache.roles.data = null; cache.roles.timestamp = 0; }
+    if (!type) { cache.users.data = null; cache.users.timestamp = 0; cache.roles.data = null; cache.roles.timestamp = 0; }
+  }
 };
