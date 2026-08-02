@@ -17,6 +17,7 @@ import { SchedulerLogModal } from './components/SchedulerLogModal';
 import { UserAuthModal } from './components/UserAuthModal';
 import { UserPermissionModal } from './components/UserPermissionModal';
 import { UserSession } from './types';
+import { useAppModals } from './hooks/useModals';
 import { Calendar, Layers, FileText, CheckCircle2, Clock, Sparkles, AlertCircle } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -27,26 +28,12 @@ export const App: React.FC = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [currentUser, setCurrentUser] = useState<UserSession>(api.getAuthSession());
   
-  // Modals visibility
-  const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
-  const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [isErrorLogModalOpen, setIsErrorLogModalOpen] = useState(false);
-  const [isAddReportModalOpen, setIsAddReportModalOpen] = useState(false);
-  const [isSchedulerLogModalOpen, setIsSchedulerLogModalOpen] = useState(false);
-  const [isUserAuthModalOpen, setIsUserAuthModalOpen] = useState(false);
-  const [isUserPermissionModalOpen, setIsUserPermissionModalOpen] = useState(false);
+  // Custom hook for managing all modal states
+  const modals = useAppModals();
   const [editingRule, setEditingRule] = useState<MilestoneRule | null>(null);
-  const [isEditReportModalOpen, setIsEditReportModalOpen] = useState(false);
-
-  // Document preview state
   const [extractResult, setExtractResult] = useState<DocumentExtractResult | null>(null);
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  // Loading indicator
   const [isLoading, setIsLoading] = useState(true);
-
-  // Active view tab (All-in-one Dashboard vs Timeline focus)
   const [activeTab, setActiveTab] = useState<'dashboard' | 'rules' | 'timeline'>('dashboard');
 
   useEffect(() => {
@@ -131,7 +118,6 @@ export const App: React.FC = () => {
     const updated = await api.updateProject(activeProject.id, updates);
     setActiveProject(updated);
     setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-    // Reload schedules because D-Day changed
     const s = await api.getSchedules(updated.id);
     setSchedules(s);
   };
@@ -175,13 +161,12 @@ export const App: React.FC = () => {
 
   const handleDocumentExtractSuccess = (result: DocumentExtractResult) => {
     setExtractResult(result);
-    setIsPreviewModalOpen(true);
+    modals.documentPreview.open();
   };
 
   const handleConfirmImportDocumentMilestones = async (selected: ExtractedMilestone[]) => {
     if (!activeProject) return;
 
-    // Convert extracted milestones to rules
     const newRules: MilestoneRule[] = selected.map((m, idx) => ({
       id: `rule-${activeProject.id}-ext-${Date.now()}-${idx}`,
       projectId: activeProject.id,
@@ -191,7 +176,6 @@ export const App: React.FC = () => {
       enabled: true,
     }));
 
-    // Strictly enforce listing ONLY reports present in the uploaded document (replacing mock/default rules)
     await handleSaveRules(newRules);
   };
 
@@ -203,7 +187,7 @@ export const App: React.FC = () => {
 
   const handleEditRule = (rule: MilestoneRule) => {
     setEditingRule(rule);
-    setIsEditReportModalOpen(true);
+    modals.editReport.open();
   };
 
   const handleEditScheduleDate = (scheduleItem: ScheduleItem) => {
@@ -220,7 +204,7 @@ export const App: React.FC = () => {
         enabled: true,
       });
     }
-    setIsEditReportModalOpen(true);
+    modals.editReport.open();
   };
 
   const handleSaveEditedRule = async (updatedRule: MilestoneRule) => {
@@ -234,7 +218,7 @@ export const App: React.FC = () => {
       nextRules = [...rules, updatedRule];
     }
     await handleSaveRules(nextRules);
-    setIsEditReportModalOpen(false);
+    modals.editReport.close();
     setEditingRule(null);
   };
 
@@ -247,7 +231,6 @@ export const App: React.FC = () => {
     setContacts(c);
   };
 
-  // Calculate statistics (memoized to avoid recomputation on every render)
   const { totalMilestones, submittedCount, pendingCount, shiftedCount } = useMemo(() => ({
     totalMilestones: rules.filter(r => r.enabled).length,
     submittedCount: schedules.filter(s => s.status === 'Submitted').length,
@@ -274,14 +257,14 @@ export const App: React.FC = () => {
         activeProject={activeProject || { id: '', code: 'PRJ-NONE', name: '尚無專案', dDay: '', advanceNoticeDays: 3, status: 'active', updatedAt: '' }}
         currentUser={currentUser}
         onSelectProject={handleSelectProject}
-        onOpenProjectManager={() => setIsProjectManagerOpen(true)}
-        onOpenHolidayModal={() => setIsHolidayModalOpen(true)}
-        onOpenContactModal={() => setIsContactModalOpen(true)}
-        onOpenErrorLogModal={() => setIsErrorLogModalOpen(true)}
-        onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
-        onOpenSchedulerLogModal={() => setIsSchedulerLogModalOpen(true)}
-        onOpenUserAuthModal={() => setIsUserAuthModalOpen(true)}
-        onOpenUserPermissionModal={() => setIsUserPermissionModalOpen(true)}
+        onOpenProjectManager={modals.projectManager.open}
+        onOpenHolidayModal={modals.holiday.open}
+        onOpenContactModal={modals.contact.open}
+        onOpenErrorLogModal={modals.errorLog.open}
+        onOpenAddReportModal={modals.addReport.open}
+        onOpenSchedulerLogModal={modals.schedulerLog.open}
+        onOpenUserAuthModal={modals.userAuth.open}
+        onOpenUserPermissionModal={modals.userPermission.open}
       />
 
       {/* Main Content Area */}
@@ -370,7 +353,6 @@ export const App: React.FC = () => {
             {/* Tab contents */}
             {activeTab === 'dashboard' && (
               <div className="animate-fade-in">
-                {/* D-Day Control */}
                 <DDayControl
                   project={activeProject}
                   onUpdateProject={handleUpdateProject}
@@ -378,13 +360,11 @@ export const App: React.FC = () => {
                   contacts={contacts}
                 />
 
-                {/* Document Uploader & Parser */}
                 <DocumentUploader
                   projectDDay={activeProject.dDay}
                   onExtractSuccess={handleDocumentExtractSuccess}
                 />
 
-                {/* Schedule Timeline Section */}
                 <ScheduleTimeline
                   project={activeProject}
                   schedules={schedules}
@@ -392,11 +372,10 @@ export const App: React.FC = () => {
                   onRefreshSchedules={() => loadProjectDetails(activeProject.id)}
                   onDeleteSchedule={handleDeleteSchedule}
                   onBatchDeleteSchedules={handleBatchDeleteSchedules}
-                  onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
+                  onOpenAddReportModal={modals.addReport.open}
                   onEditScheduleDate={handleEditScheduleDate}
                 />
 
-                {/* Milestone Rule Manager Section */}
                 <RuleManager
                   projectId={activeProject.id}
                   rules={rules}
@@ -405,7 +384,7 @@ export const App: React.FC = () => {
                   projectDDay={activeProject.dDay}
                   onDeleteRule={handleDeleteRule}
                   onBatchDeleteRules={handleBatchDeleteRules}
-                  onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
+                  onOpenAddReportModal={modals.addReport.open}
                   onEditRule={handleEditRule}
                   activeProject={activeProject}
                 />
@@ -427,7 +406,7 @@ export const App: React.FC = () => {
                   onRefreshSchedules={() => loadProjectDetails(activeProject.id)}
                   onDeleteSchedule={handleDeleteSchedule}
                   onBatchDeleteSchedules={handleBatchDeleteSchedules}
-                  onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
+                  onOpenAddReportModal={modals.addReport.open}
                   onEditScheduleDate={handleEditScheduleDate}
                 />
               </div>
@@ -443,7 +422,7 @@ export const App: React.FC = () => {
                   projectDDay={activeProject.dDay}
                   onDeleteRule={handleDeleteRule}
                   onBatchDeleteRules={handleBatchDeleteRules}
-                  onOpenAddReportModal={() => setIsAddReportModalOpen(true)}
+                  onOpenAddReportModal={modals.addReport.open}
                   onEditRule={handleEditRule}
                   activeProject={activeProject}
                 />
@@ -457,7 +436,7 @@ export const App: React.FC = () => {
             <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: '1.5rem' }}>
               請開啟專案管理中心點擊「新建專案」以開始管理履約報告提醒。
             </p>
-            <button className="btn-primary" onClick={() => setIsProjectManagerOpen(true)}>
+            <button className="btn-primary" onClick={modals.projectManager.open}>
               開啟專案管理中心
             </button>
           </div>
@@ -478,8 +457,8 @@ export const App: React.FC = () => {
 
       {/* Global Modals */}
       <ProjectManagerModal
-        isOpen={isProjectManagerOpen}
-        onClose={() => setIsProjectManagerOpen(false)}
+        isOpen={modals.projectManager.isOpen}
+        onClose={modals.projectManager.close}
         projects={projects}
         activeProject={activeProject || { id: '', code: '', name: '', dDay: '', advanceNoticeDays: 3, status: 'active', updatedAt: '' }}
         onSelectProject={handleSelectProject}
@@ -489,41 +468,41 @@ export const App: React.FC = () => {
       />
 
       <HolidayManagementModal
-        isOpen={isHolidayModalOpen}
-        onClose={() => setIsHolidayModalOpen(false)}
+        isOpen={modals.holiday.isOpen}
+        onClose={modals.holiday.close}
         onHolidayUpdated={handleHolidayOrContactUpdated}
       />
 
       <ContactImportModal
-        isOpen={isContactModalOpen}
-        onClose={() => setIsContactModalOpen(false)}
+        isOpen={modals.contact.isOpen}
+        onClose={modals.contact.close}
         onContactsUpdated={handleHolidayOrContactUpdated}
       />
 
       <DocumentPreviewModal
-        isOpen={isPreviewModalOpen}
-        onClose={() => setIsPreviewModalOpen(false)}
+        isOpen={modals.documentPreview.isOpen}
+        onClose={modals.documentPreview.close}
         extractResult={extractResult}
         onConfirmImport={handleConfirmImportDocumentMilestones}
       />
 
       <ErrorLogModal
-        isOpen={isErrorLogModalOpen}
-        onClose={() => setIsErrorLogModalOpen(false)}
+        isOpen={modals.errorLog.isOpen}
+        onClose={modals.errorLog.close}
       />
 
       <AddReportModal
-        isOpen={isAddReportModalOpen}
-        onClose={() => setIsAddReportModalOpen(false)}
+        isOpen={modals.addReport.isOpen}
+        onClose={modals.addReport.close}
         activeProject={activeProject}
         contacts={contacts}
         onAddReport={handleAddReport}
       />
 
       <EditReportModal
-        isOpen={isEditReportModalOpen}
+        isOpen={modals.editReport.isOpen}
         onClose={() => {
-          setIsEditReportModalOpen(false);
+          modals.editReport.close();
           setEditingRule(null);
         }}
         activeProject={activeProject}
@@ -533,20 +512,20 @@ export const App: React.FC = () => {
       />
 
       <SchedulerLogModal
-        isOpen={isSchedulerLogModalOpen}
-        onClose={() => setIsSchedulerLogModalOpen(false)}
+        isOpen={modals.schedulerLog.isOpen}
+        onClose={modals.schedulerLog.close}
       />
 
       <UserAuthModal
-        isOpen={isUserAuthModalOpen}
-        onClose={() => setIsUserAuthModalOpen(false)}
+        isOpen={modals.userAuth.isOpen}
+        onClose={modals.userAuth.close}
         currentUser={currentUser}
         onUserLoginSuccess={(u) => setCurrentUser(u)}
       />
 
       <UserPermissionModal
-        isOpen={isUserPermissionModalOpen}
-        onClose={() => setIsUserPermissionModalOpen(false)}
+        isOpen={modals.userPermission.isOpen}
+        onClose={modals.userPermission.close}
         currentUser={currentUser}
       />
     </div>

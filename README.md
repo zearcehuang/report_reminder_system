@@ -54,8 +54,8 @@
 
 ## 🛠️ 技術架構 (Tech Stack)
 
-- **前端 (Frontend)**：React 18, TypeScript, Vite 5.x, Lucide React (圖示庫), Vanilla CSS (Design Tokens & CSS Variables), `mockData.ts` 離線模組, `fetchApi` 歸一化請求層
-- **後端 (Backend)**：Node.js Express 4.x, Multer, `authMiddleware` (RBAC JWT 驗證與密碼 Hash 雜湊), `AiContractParser` (五維度合約解析服務), `SchedulerService` (常駐背景排程器), C# .NET API/Tests 相容層 (`ReportReminder.Api`, `ReportReminder.Tests`)
+- **前端 (Frontend)**：React 18, TypeScript, Vite 5.x, Lucide React (圖示庫), Vanilla CSS (Design Tokens & CSS Variables), `useAppModals` 狀態管理 Hook, `fetchApi` 歸一化請求層
+- **後端 (Backend)**：Node.js Express 4.x (模組化 `routes/`, `services/`, `middleware/`), `jsonwebtoken` (JWT 驗證), `joi` (Schema 輸入驗證), `asyncHandler` (全域 Async 錯誤捕獲), `passwordService` (scrypt 密碼 Hash 雜湊), `AiContractParser` (五維度合約解析服務), `SchedulerService` (常駐背景排程器), C# .NET API/Tests 相容層 (`ReportReminder.Api`, `ReportReminder.Tests`)
 - **資料儲存 (Data Storage)**：JSON 檔案儲存庫與記憶體寫入快取 (位於 `./data/` 目錄，包含 `projects.json`, `holidays.json`, `contacts.json`, `notification_logs.json`, `users.json`, `roles.json`)
 
 ---

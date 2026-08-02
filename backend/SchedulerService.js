@@ -1,15 +1,8 @@
-const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
-
-// Shared date formatting helper
-function formatDateISO(date) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
+const { readJsonSync, writeJsonSync } = require('./services/jsonStore');
+const { formatDateISO, getPreviousWorkday } = require('./services/calendarService');
 
 class SchedulerService {
   constructor(dataDir) {
@@ -23,25 +16,6 @@ class SchedulerService {
     this.lastScanCount = 0;
     this.nextScheduledTime = null;
     this.isRunning = false;
-  }
-
-  readJson(filePath, defaultValue) {
-    try {
-      if (fs.existsSync(filePath)) {
-        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      }
-    } catch (e) {
-      console.error(`Error reading ${filePath}:`, e);
-    }
-    return defaultValue;
-  }
-
-  writeJson(filePath, data) {
-    try {
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
-    } catch (e) {
-      console.error(`Error writing ${filePath}:`, e);
-    }
   }
 
   start() {
@@ -74,7 +48,7 @@ class SchedulerService {
   }
 
   getStatus() {
-    const logs = this.readJson(this.logsFile, []);
+    const logs = readJsonSync(this.logsFile, []);
     return {
       isRunning: this.isRunning,
       schedulePattern: '每日 09:00 AM 自動稽核掃描',
@@ -85,41 +59,15 @@ class SchedulerService {
     };
   }
 
-  isWorkday(dateStr, holidays) {
-    const hRecord = holidays.find(h => h.date === dateStr);
-    if (hRecord) {
-      return hRecord.isWorkday === true || hRecord.isHoliday === false;
-    }
-    const date = new Date(dateStr);
-    const day = date.getDay();
-    return day !== 0 && day !== 6;
-  }
-
-  getPreviousWorkday(dateStr, holidays) {
-    let curr = new Date(dateStr);
-    const MAX_ITERATIONS = 365; // Safety limit
-    let iterations = 0;
-    while (iterations < MAX_ITERATIONS) {
-      const iso = formatDateISO(curr);
-      if (this.isWorkday(iso, holidays)) {
-        return iso;
-      }
-      curr.setDate(curr.getDate() - 1);
-      iterations++;
-    }
-    // Fallback to original date if no workday found
-    return dateStr;
-  }
-
   async runScanAndNotify() {
     const now = new Date();
     const todayStr = formatDateISO(now);
 
     this.lastScanTime = now.toISOString();
 
-    const projects = this.readJson(this.projectsFile, []);
-    const holidays = this.readJson(this.holidaysFile, []);
-    const logs = this.readJson(this.logsFile, []);
+    const projects = readJsonSync(this.projectsFile, []);
+    const holidays = readJsonSync(this.holidaysFile, []);
+    const logs = readJsonSync(this.logsFile, []);
 
     let notifyCount = 0;
 
@@ -134,22 +82,18 @@ class SchedulerService {
         try {
           if (!rule.enabled || rule.isCompleted) continue;
 
-          // Raw target date
           const rawTarget = new Date(dDay);
           rawTarget.setDate(rawTarget.getDate() + rule.dayOffset);
           const rawTargetStr = formatDateISO(rawTarget);
 
-          // Adjusted target business date after holidays
-          const adjustedTargetStr = this.getPreviousWorkday(rawTargetStr, holidays);
+          const adjustedTargetStr = getPreviousWorkday(rawTargetStr, holidays);
 
-          // Advance notice days list (e.g. [1, 3, 7, 14])
           const noticeDaysList = project.advanceNoticeDaysList || [project.advanceNoticeDays || 3];
 
-          // Calculate notice trigger dates
           const triggerDates = noticeDaysList.map(days => {
             const dt = new Date(adjustedTargetStr);
             dt.setDate(dt.getDate() - days);
-            return this.getPreviousWorkday(dt.toISOString().split('T')[0], holidays);
+            return getPreviousWorkday(dt.toISOString().split('T')[0], holidays);
           });
 
           const isOverdue = todayStr > adjustedTargetStr;
@@ -176,7 +120,6 @@ class SchedulerService {
                 : `🔔 報告 [${rule.title}] 預警提醒 (死線: ${adjustedTargetStr})`
             };
 
-            // Dispatch MS Teams Webhook if URL exists
             if (project.teamsWebhookUrl) {
               try {
                 await this.sendTeamsWebhook(project.teamsWebhookUrl, logItem);
@@ -189,19 +132,17 @@ class SchedulerService {
             logs.unshift(logItem);
           }
         } catch (ruleError) {
-          // Independent error handling per rule — one failing rule doesn't block others
           console.error(`⚠️ Error scanning rule [${rule.id}] in project [${project.id}]:`, ruleError.message);
         }
       }
     }
 
-    // Keep up to 200 logs
     if (logs.length > 200) {
       logs.length = 200;
     }
 
     this.lastScanCount = notifyCount;
-    this.writeJson(this.logsFile, logs);
+    writeJsonSync(this.logsFile, logs);
 
     console.log(`⏰ Background Scheduler Scan Completed: ${notifyCount} notification(s) generated.`);
     return { scanTime: this.lastScanTime, notifyCount, totalLogs: logs.length };
@@ -235,7 +176,7 @@ class SchedulerService {
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(postData)
           },
-          timeout: 30000 // 30 second timeout
+          timeout: 30000
         }, (res) => {
           resolve(res.statusCode);
         });

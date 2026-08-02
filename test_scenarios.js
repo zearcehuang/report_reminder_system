@@ -14,9 +14,13 @@ function makeRequest(options, postData = null) {
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data));
+          const parsed = JSON.parse(data);
+          if (typeof parsed === 'object' && parsed !== null) {
+            parsed._statusCode = res.statusCode;
+          }
+          resolve(parsed);
         } catch (e) {
-          resolve(data);
+          resolve({ _statusCode: res.statusCode, raw: data });
         }
       });
     });
@@ -310,7 +314,47 @@ async function runTests() {
 
   console.log(`  ✓ Auditor Login Success: ${auditorAuth.success}`);
   console.log(`  ✓ Auditor Verified Role: ${auditorAuth.user.role} (${auditorAuth.user.name})`);
-  console.log('  PASS Scenario 8 ✅\n');
+
+  // 8d. Negative Test: Auditor attempts Admin-only route POST /api/users
+  const auditorCreateUserRes = await makeRequest({
+    port: 5000,
+    path: '/api/users',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${auditorAuth.token}`
+    }
+  }, { email: 'forbidden@company.com', name: 'Forbidden User' });
+  console.log(`  ✓ Auditor attempting POST /api/users -> Status ${auditorCreateUserRes._statusCode} (Expected 403): ${auditorCreateUserRes._statusCode === 403 ? 'PASS' : 'FAIL'}`);
+
+  // 8e. Negative Test: Auditor attempts Delete Project DELETE /api/projects/PRJ-2026-ALPHA
+  const auditorDeleteProjRes = await makeRequest({
+    port: 5000,
+    path: '/api/projects/PRJ-2026-ALPHA',
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${auditorAuth.token}`
+    }
+  });
+  console.log(`  ✓ Auditor attempting DELETE /api/projects -> Status ${auditorDeleteProjRes._statusCode} (Expected 403): ${auditorDeleteProjRes._statusCode === 403 ? 'PASS' : 'FAIL'}`);
+
+  // 8f. Negative Test: PM attempts Admin-only route POST /api/roles
+  const pmCreateRoleRes = await makeRequest({
+    port: 5000,
+    path: '/api/roles',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${pmAuth.token}`
+    }
+  }, { name: 'UnauthorizedRole' });
+  console.log(`  ✓ PM attempting POST /api/roles -> Status ${pmCreateRoleRes._statusCode} (Expected 403): ${pmCreateRoleRes._statusCode === 403 ? 'PASS' : 'FAIL'}`);
+
+  if (auditorCreateUserRes._statusCode === 403 && auditorDeleteProjRes._statusCode === 403 && pmCreateRoleRes._statusCode === 403) {
+    console.log('  PASS Scenario 8 ✅ (All 3 Positive & 3 Negative RBAC Checks Passed!)\n');
+  } else {
+    throw new Error('RBAC Negative Denial Verification Failed');
+  }
 
   // Test Scenario 9: User Maintenance CRUD & Role Authorization Matrix Verification
   console.log('▶ [Scenario 9] User Maintenance CRUD & Role Authorization Matrix Verification');
