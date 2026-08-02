@@ -84,10 +84,8 @@ if (fs.existsSync(FRONTEND_DIST)) {
 }
 
 // Global error handler
-app.use((err, req, res, next) => {
-  logError('EXPRESS_GLOBAL', err, { method: req.method, url: req.originalUrl });
-  res.status(500).json({ error: '伺服器內部錯誤 (Internal Server Error)', message: err.message });
-});
+const errorHandler = require('./backend/middleware/errorHandler');
+app.use(errorHandler);
 
 process.on('uncaughtException', (err) => {
   logError('UNCAUGHT_EXCEPTION', err);

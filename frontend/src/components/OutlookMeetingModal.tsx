@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ScheduleItem, Project, SenderAccount, OutlookMeetingPayload } from '../types';
-import { Send, X, Check, Calendar, User, Clock, ExternalLink, ShieldCheck, Download, AlertCircle, Mail, FileText } from 'lucide-react';
+import { ScheduleItem, Project, SenderAccount } from '../types';
+import { Send, X, Calendar, Download, Check, Mail } from 'lucide-react';
 import { api } from '../services/api';
+import { SenderAuthCard } from './OutlookMeetingModal/SenderAuthCard';
+import { NoticeDaysPicker } from './OutlookMeetingModal/NoticeDaysPicker';
+import { MeetingPreviewCard } from './OutlookMeetingModal/MeetingPreviewCard';
 
 interface Props {
   isOpen: boolean;
@@ -59,6 +62,7 @@ export const OutlookMeetingModal: React.FC<Props> = ({
       setSenderName(defaultName);
       setSenderPassword('pass1234');
       setLoginError('');
+      setCustomNote('');
 
       // Check if previously logged in
       const savedSender = localStorage.getItem('report_reminder_sender_account');
@@ -89,7 +93,7 @@ export const OutlookMeetingModal: React.FC<Props> = ({
     }
   };
 
-  const getNoticeDateStr = (dueDateIso: string, daysBefore: number) => {
+  const getNoticeDateStr = (dueDateIso: string | undefined, daysBefore: number) => {
     if (!dueDateIso) return '';
     const d = new Date(dueDateIso);
     d.setDate(d.getDate() - daysBefore);
@@ -250,8 +254,6 @@ export const OutlookMeetingModal: React.FC<Props> = ({
       }
 
       setSendSuccess(res.message);
-
-      // Auto Download .ics Outlook Meeting Invitation file
       handleDownloadIcsFile();
 
       if (onNotificationSent) onNotificationSent();
@@ -265,7 +267,6 @@ export const OutlookMeetingModal: React.FC<Props> = ({
   return (
     <div className="modal-overlay">
       <div className="glass-modal width-full" style={{ maxWidth: '720px', padding: '1.75rem', maxHeight: '92vh', overflowY: 'auto' }}>
-        {/* Modal Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
@@ -289,260 +290,44 @@ export const OutlookMeetingModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* 🔐 Sender Login Authentication Card Section */}
-        <div style={{
-          background: isSenderLoggedIn ? '#f0fdf4' : '#fff1f2',
-          border: isSenderLoggedIn ? '1.5px solid #86efac' : '1.5px solid #fca5a5',
-          borderRadius: 'var(--radius-md)',
-          padding: '0.9rem 1.1rem',
-          marginBottom: '1.25rem',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isSenderLoggedIn ? 0 : '0.65rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <ShieldCheck size={18} color={isSenderLoggedIn ? '#16a34a' : '#dc2626'} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: isSenderLoggedIn ? '#166534' : '#991b1b' }}>
-                {isSenderLoggedIn
-                  ? `✓ 已成功登入發布寄件者帳號: [${activeSender?.name}] (${activeSender?.email})`
-                  : '⚠️ 發布寄件者身分登入驗證 (正式發布 Outlook 會議信件前必須先登入帳號)'}
-              </span>
-            </div>
-            {isSenderLoggedIn && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSenderLoggedIn(false);
-                  setActiveSender(null);
-                  localStorage.removeItem('report_reminder_sender_account');
-                }}
-                style={{ background: '#ffffff', border: '1px solid #86efac', color: '#166534', fontSize: '0.725rem', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
-              >
-                切換寄件者帳號
-              </button>
-            )}
-          </div>
+        <SenderAuthCard
+          isSenderLoggedIn={isSenderLoggedIn}
+          activeSender={activeSender}
+          senderEmail={senderEmail}
+          senderName={senderName}
+          senderPassword={senderPassword}
+          isLoggingIn={isLoggingIn}
+          loginError={loginError}
+          setSenderEmail={setSenderEmail}
+          setSenderName={setSenderName}
+          setSenderPassword={setSenderPassword}
+          onLogin={handleLoginSender}
+          onLogout={() => {
+            setIsSenderLoggedIn(false);
+            setActiveSender(null);
+            localStorage.removeItem('report_reminder_sender_account');
+          }}
+        />
 
-          {!isSenderLoggedIn && (
-            <form onSubmit={handleLoginSender}>
-              <p style={{ fontSize: '0.775rem', color: '#7f1d1d', margin: '0 0 0.65rem 0' }}>
-                為確保 Outlook 會議預約信件能真實發出至權責對象信箱，發出前請先完成發布寄件者帳號驗證：
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.2fr auto', gap: '0.5rem', alignItems: 'center' }}>
-                <input
-                  type="email"
-                  className="input-glass"
-                  placeholder="寄件者 Email"
-                  value={senderEmail}
-                  onChange={(e) => setSenderEmail(e.target.value)}
-                  style={{ fontSize: '0.8rem', padding: '0.45rem 0.6rem' }}
-                  required
-                />
-                <input
-                  type="text"
-                  className="input-glass"
-                  placeholder="顯示姓名 (如: 張小明 PM)"
-                  value={senderName}
-                  onChange={(e) => setSenderName(e.target.value)}
-                  style={{ fontSize: '0.8rem', padding: '0.45rem 0.6rem' }}
-                />
-                <input
-                  type="password"
-                  className="input-glass"
-                  placeholder="Outlook 授權密碼"
-                  value={senderPassword}
-                  onChange={(e) => setSenderPassword(e.target.value)}
-                  style={{ fontSize: '0.8rem', padding: '0.45rem 0.6rem' }}
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={isLoggingIn}
-                  style={{
-                    background: '#dc2626',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '0.45rem 0.85rem',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 2px 4px rgba(220, 38, 38, 0.2)',
-                  }}
-                >
-                  {isLoggingIn ? '驗證中...' : '🔐 登入驗證身分'}
-                </button>
-              </div>
-            </form>
-          )}
+        <NoticeDaysPicker
+          presetDayOptions={presetDayOptions}
+          selectedNoticeDays={selectedNoticeDays}
+          calculatedDate={scheduleItem.calculatedDate}
+          onToggleNoticeDay={handleToggleNoticeDay}
+          getNoticeDateStr={getNoticeDateStr}
+        />
 
-          {loginError && (
-            <div style={{ color: '#dc2626', fontSize: '0.8rem', fontWeight: 700, marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <AlertCircle size={15} />
-              <span>{loginError}</span>
-            </div>
-          )}
-        </div>
+        <MeetingPreviewCard
+          project={project}
+          scheduleItem={scheduleItem}
+          selectedNoticeDays={selectedNoticeDays}
+          isSenderLoggedIn={isSenderLoggedIn}
+          activeSender={activeSender}
+          customNote={customNote}
+          setCustomNote={setCustomNote}
+        />
 
-        {/* Multi-Select Warning Days Pills */}
-        <div style={{
-          background: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          borderRadius: 'var(--radius-md)',
-          padding: '0.85rem 1rem',
-          marginBottom: '1.25rem',
-        }}>
-          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <Clock size={14} color="#0078d4" /> 選擇 Outlook 會議預警包含的天數 (可複選):
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
-            {presetDayOptions.map((day) => {
-              const isSelected = selectedNoticeDays.includes(day);
-              const datePreview = getNoticeDateStr(scheduleItem.calculatedDate, day);
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => handleToggleNoticeDay(day)}
-                  style={{
-                    padding: '0.35rem 0.75rem',
-                    borderRadius: '6px',
-                    fontSize: '0.775rem',
-                    fontWeight: 600,
-                    border: isSelected ? '2px solid #0078d4' : '1px solid #cbd5e1',
-                    background: isSelected ? '#eff6ff' : '#ffffff',
-                    color: isSelected ? '#005a9e' : '#475569',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>{day} 天前預警 ({datePreview})</span>
-                  {isSelected && <span style={{ fontSize: '0.75rem', color: '#0078d4', fontWeight: 700 }}>✓</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Live Outlook Meeting Card Mockup */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.4rem', letterSpacing: '0.04em' }}>
-            MICROSOFT OUTLOOK MEETING INVITATION PREVIEW
-          </div>
-
-          <div style={{
-            background: '#ffffff',
-            borderLeft: '4px solid #0078d4',
-            borderTop: '1px solid #e1dfdd',
-            borderRight: '1px solid #e1dfdd',
-            borderBottom: '1px solid #e1dfdd',
-            borderRadius: '8px',
-            padding: '1.25rem',
-            color: '#242424',
-            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.08)',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          }}>
-            {/* Outlook Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{
-                  background: '#0078d4',
-                  color: '#fff',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  padding: '0.15rem 0.5rem',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                }}>
-                  <Mail size={12} /> Outlook 會議邀請
-                </span>
-                <span style={{ fontSize: '0.8rem', color: '#605e5c' }}>[{project.code}] {project.name}</span>
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <Clock size={12} /> 預警頻率: {selectedNoticeDays.sort((a, b) => b - a).map((d) => `${d}天前`).join(', ')}
-              </div>
-            </div>
-
-            {/* Title */}
-            <h3 style={{ fontSize: '1.15rem', color: '#0f172a', marginBottom: '0.75rem', fontWeight: 700 }}>
-              📌 履約報告繳交提醒會議：{scheduleItem.title}
-            </h3>
-
-            {/* Facts Grid */}
-            <div style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '6px',
-              padding: '0.85rem 1rem',
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '0.65rem',
-              fontSize: '0.825rem',
-              marginBottom: '1rem',
-            }}>
-              <div>
-                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>報告死線 (Due Date)</span>
-                <strong style={{ color: '#dc2626', fontSize: '0.95rem' }}>{scheduleItem.calculatedDate}</strong>
-                {scheduleItem.wasShiftedByHoliday && (
-                  <span style={{ fontSize: '0.7rem', color: '#7c3aed', marginLeft: '0.3rem' }}>
-                    ({scheduleItem.holidayName}順延)
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>會議受邀者 (Attendees)</span>
-                <strong style={{ color: '#4338ca' }}>{scheduleItem.owners.join(', ')}</strong>
-              </div>
-
-              <div>
-                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>發布寄件者 (Organizer)</span>
-                <strong style={{ color: isSenderLoggedIn ? '#166534' : '#dc2626' }}>
-                  {activeSender ? `${activeSender.name} (${activeSender.email})` : '未登入寄件者帳號'}
-                </strong>
-              </div>
-
-              <div>
-                <span style={{ color: '#64748b', display: 'block', fontSize: '0.725rem' }}>預估會議時間</span>
-                <span style={{ color: '#334155', fontWeight: 600 }}>09:00 - 10:00 AM (報告死線日)</span>
-              </div>
-            </div>
-
-            {/* Custom note inside preview */}
-            <div style={{
-              background: '#eff6ff',
-              border: '1px dashed #0078d4',
-              borderRadius: '6px',
-              padding: '0.65rem 0.85rem',
-              fontSize: '0.8rem',
-              color: '#1e3a8a',
-              marginBottom: '1rem',
-            }}>
-              💬 <strong>會議內文備註:</strong> {customNote || '請承辦同仁於死線前完成上傳並點擊團隊審核確認！'}
-            </div>
-          </div>
-        </div>
-
-        {/* Custom Note input */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <label style={{ display: 'block', fontSize: '0.825rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-            發送附言 / 會議內文說明 (將寫入 Outlook 會議說明)
-          </label>
-          <input
-            type="text"
-            className="input-glass"
-            placeholder="例如: 請務必夾帶章節 4.2 系統測試報告結果"
-            value={customNote}
-            onChange={(e) => setCustomNote(e.target.value)}
-          />
-        </div>
-
-        {/* Success Alert */}
+        {/* Success Alert & Actions */}
         {sendSuccess && (
           <div className="animate-fade-in" style={{
             background: '#ecfdf5',
@@ -563,7 +348,6 @@ export const OutlookMeetingModal: React.FC<Props> = ({
               💡 提醒：要讓會議「真正出現在您與受邀對象的 Outlook 行事曆」上，請選擇以下方式發出會議邀請：
             </p>
 
-            {/* Direct Outlook Launch Actions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
               <a
                 href={getOutlookWebCalendarLink()}
@@ -634,7 +418,6 @@ export const OutlookMeetingModal: React.FC<Props> = ({
 
         {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {/* Direct Manual Download Button */}
           <button
             type="button"
             onClick={handleDownloadIcsFile}
