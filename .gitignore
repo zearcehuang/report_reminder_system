@@ -20,3 +20,10 @@ data/error.log
 .env.local
 .DS_Store
 Thumbs.db
+
+# .NET standard
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/

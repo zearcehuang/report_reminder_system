@@ -14,16 +14,16 @@ namespace ReportReminder.Api.Services;
 
 public interface IJsonStoreService
 {
-    Task<List<Project>> GetProjectsAsync();
-    Task<Project?> GetProjectByIdAsync(string id);
-    Task SaveProjectAsync(Project project);
-    Task DeleteProjectAsync(string id);
+    Task<List<Project>> GetProjectsAsync(CancellationToken cancellationToken = default);
+    Task<Project?> GetProjectByIdAsync(string id, CancellationToken cancellationToken = default);
+    Task SaveProjectAsync(Project project, CancellationToken cancellationToken = default);
+    Task DeleteProjectAsync(string id, CancellationToken cancellationToken = default);
 
-    Task<List<Holiday>> GetHolidaysAsync();
-    Task SaveHolidaysAsync(IEnumerable<Holiday> holidays);
+    Task<List<Holiday>> GetHolidaysAsync(CancellationToken cancellationToken = default);
+    Task SaveHolidaysAsync(IEnumerable<Holiday> holidays, CancellationToken cancellationToken = default);
 
-    Task<List<Contact>> GetContactsAsync();
-    Task SaveContactsAsync(IEnumerable<Contact> contacts);
+    Task<List<Contact>> GetContactsAsync(CancellationToken cancellationToken = default);
+    Task SaveContactsAsync(IEnumerable<Contact> contacts, CancellationToken cancellationToken = default);
 }
 
 public class JsonStoreService : IJsonStoreService
@@ -37,6 +37,10 @@ public class JsonStoreService : IJsonStoreService
     private static readonly SemaphoreSlim _projectsLock = new(1, 1);
     private static readonly SemaphoreSlim _holidaysLock = new(1, 1);
     private static readonly SemaphoreSlim _contactsLock = new(1, 1);
+
+    private List<Project>? _projectsCache = null;
+    private List<Holiday>? _holidaysCache = null;
+    private List<Contact>? _contactsCache = null;
 
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -87,14 +91,17 @@ public class JsonStoreService : IJsonStoreService
     }
 
     #region Projects
-    public async Task<List<Project>> GetProjectsAsync()
+    public async Task<List<Project>> GetProjectsAsync(CancellationToken cancellationToken = default)
     {
-        await _projectsLock.WaitAsync();
+        await _projectsLock.WaitAsync(cancellationToken);
         try
         {
+            if (_projectsCache != null) return new List<Project>(_projectsCache);
             if (!File.Exists(_projectsFilePath)) return new List<Project>();
-            string json = await File.ReadAllTextAsync(_projectsFilePath);
-            return JsonSerializer.Deserialize<List<Project>>(json, _jsonOptions) ?? new List<Project>();
+            string json = await File.ReadAllTextAsync(_projectsFilePath, cancellationToken);
+            var result = JsonSerializer.Deserialize<List<Project>>(json, _jsonOptions) ?? new List<Project>();
+            _projectsCache = new List<Project>(result);
+            return result;
         }
         catch (Exception ex)
         {
@@ -107,21 +114,21 @@ public class JsonStoreService : IJsonStoreService
         }
     }
 
-    public async Task<Project?> GetProjectByIdAsync(string id)
+    public async Task<Project?> GetProjectByIdAsync(string id, CancellationToken cancellationToken = default)
     {
-        var projects = await GetProjectsAsync();
+        var projects = await GetProjectsAsync(cancellationToken);
         return projects.FirstOrDefault(p => p.Id == id);
     }
 
-    public async Task SaveProjectAsync(Project project)
+    public async Task SaveProjectAsync(Project project, CancellationToken cancellationToken = default)
     {
-        await _projectsLock.WaitAsync();
+        await _projectsLock.WaitAsync(cancellationToken);
         try
         {
             List<Project> projects = new();
             if (File.Exists(_projectsFilePath))
             {
-                string json = await File.ReadAllTextAsync(_projectsFilePath);
+                string json = await File.ReadAllTextAsync(_projectsFilePath, cancellationToken);
                 projects = JsonSerializer.Deserialize<List<Project>>(json, _jsonOptions) ?? new List<Project>();
             }
 
@@ -137,7 +144,8 @@ public class JsonStoreService : IJsonStoreService
             }
 
             string updatedJson = JsonSerializer.Serialize(projects, _jsonOptions);
-            await File.WriteAllTextAsync(_projectsFilePath, updatedJson);
+            await File.WriteAllTextAsync(_projectsFilePath, updatedJson, cancellationToken);
+            _projectsCache = new List<Project>(projects);
         }
         finally
         {
@@ -145,18 +153,19 @@ public class JsonStoreService : IJsonStoreService
         }
     }
 
-    public async Task DeleteProjectAsync(string id)
+    public async Task DeleteProjectAsync(string id, CancellationToken cancellationToken = default)
     {
-        await _projectsLock.WaitAsync();
+        await _projectsLock.WaitAsync(cancellationToken);
         try
         {
             if (!File.Exists(_projectsFilePath)) return;
-            string json = await File.ReadAllTextAsync(_projectsFilePath);
+            string json = await File.ReadAllTextAsync(_projectsFilePath, cancellationToken);
             var projects = JsonSerializer.Deserialize<List<Project>>(json, _jsonOptions) ?? new List<Project>();
             projects.RemoveAll(p => p.Id == id);
 
             string updatedJson = JsonSerializer.Serialize(projects, _jsonOptions);
-            await File.WriteAllTextAsync(_projectsFilePath, updatedJson);
+            await File.WriteAllTextAsync(_projectsFilePath, updatedJson, cancellationToken);
+            _projectsCache = new List<Project>(projects);
         }
         finally
         {
@@ -166,14 +175,17 @@ public class JsonStoreService : IJsonStoreService
     #endregion
 
     #region Holidays
-    public async Task<List<Holiday>> GetHolidaysAsync()
+    public async Task<List<Holiday>> GetHolidaysAsync(CancellationToken cancellationToken = default)
     {
-        await _holidaysLock.WaitAsync();
+        await _holidaysLock.WaitAsync(cancellationToken);
         try
         {
+            if (_holidaysCache != null) return new List<Holiday>(_holidaysCache);
             if (!File.Exists(_holidaysFilePath)) return new List<Holiday>();
-            string json = await File.ReadAllTextAsync(_holidaysFilePath);
-            return JsonSerializer.Deserialize<List<Holiday>>(json, _jsonOptions) ?? new List<Holiday>();
+            string json = await File.ReadAllTextAsync(_holidaysFilePath, cancellationToken);
+            var result = JsonSerializer.Deserialize<List<Holiday>>(json, _jsonOptions) ?? new List<Holiday>();
+            _holidaysCache = new List<Holiday>(result);
+            return result;
         }
         catch (Exception ex)
         {
@@ -186,15 +198,15 @@ public class JsonStoreService : IJsonStoreService
         }
     }
 
-    public async Task SaveHolidaysAsync(IEnumerable<Holiday> holidays)
+    public async Task SaveHolidaysAsync(IEnumerable<Holiday> holidays, CancellationToken cancellationToken = default)
     {
-        await _holidaysLock.WaitAsync();
+        await _holidaysLock.WaitAsync(cancellationToken);
         try
         {
             List<Holiday> currentHolidays = new();
             if (File.Exists(_holidaysFilePath))
             {
-                string json = await File.ReadAllTextAsync(_holidaysFilePath);
+                string json = await File.ReadAllTextAsync(_holidaysFilePath, cancellationToken);
                 currentHolidays = JsonSerializer.Deserialize<List<Holiday>>(json, _jsonOptions) ?? new List<Holiday>();
             }
 
@@ -206,7 +218,8 @@ public class JsonStoreService : IJsonStoreService
 
             var updatedList = dict.Values.OrderBy(h => h.Date).ToList();
             string updatedJson = JsonSerializer.Serialize(updatedList, _jsonOptions);
-            await File.WriteAllTextAsync(_holidaysFilePath, updatedJson);
+            await File.WriteAllTextAsync(_holidaysFilePath, updatedJson, cancellationToken);
+            _holidaysCache = new List<Holiday>(updatedList);
         }
         finally
         {
@@ -216,14 +229,17 @@ public class JsonStoreService : IJsonStoreService
     #endregion
 
     #region Contacts
-    public async Task<List<Contact>> GetContactsAsync()
+    public async Task<List<Contact>> GetContactsAsync(CancellationToken cancellationToken = default)
     {
-        await _contactsLock.WaitAsync();
+        await _contactsLock.WaitAsync(cancellationToken);
         try
         {
+            if (_contactsCache != null) return new List<Contact>(_contactsCache);
             if (!File.Exists(_contactsFilePath)) return new List<Contact>();
-            string json = await File.ReadAllTextAsync(_contactsFilePath);
-            return JsonSerializer.Deserialize<List<Contact>>(json, _jsonOptions) ?? new List<Contact>();
+            string json = await File.ReadAllTextAsync(_contactsFilePath, cancellationToken);
+            var result = JsonSerializer.Deserialize<List<Contact>>(json, _jsonOptions) ?? new List<Contact>();
+            _contactsCache = new List<Contact>(result);
+            return result;
         }
         catch (Exception ex)
         {
@@ -236,15 +252,15 @@ public class JsonStoreService : IJsonStoreService
         }
     }
 
-    public async Task SaveContactsAsync(IEnumerable<Contact> contacts)
+    public async Task SaveContactsAsync(IEnumerable<Contact> contacts, CancellationToken cancellationToken = default)
     {
-        await _contactsLock.WaitAsync();
+        await _contactsLock.WaitAsync(cancellationToken);
         try
         {
             List<Contact> currentContacts = new();
             if (File.Exists(_contactsFilePath))
             {
-                string json = await File.ReadAllTextAsync(_contactsFilePath);
+                string json = await File.ReadAllTextAsync(_contactsFilePath, cancellationToken);
                 currentContacts = JsonSerializer.Deserialize<List<Contact>>(json, _jsonOptions) ?? new List<Contact>();
             }
 
@@ -257,7 +273,8 @@ public class JsonStoreService : IJsonStoreService
 
             var updatedList = dict.Values.ToList();
             string updatedJson = JsonSerializer.Serialize(updatedList, _jsonOptions);
-            await File.WriteAllTextAsync(_contactsFilePath, updatedJson);
+            await File.WriteAllTextAsync(_contactsFilePath, updatedJson, cancellationToken);
+            _contactsCache = new List<Contact>(updatedList);
         }
         finally
         {

@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using DocumentFormat.OpenXml.Packaging;
@@ -18,8 +21,8 @@ namespace ReportReminder.Api.Services;
 
 public interface IDocumentParserService
 {
-    Task<UploadedFileInfo> SaveAndParseFileAsync(string projectId, IFormFile file);
-    DocumentPreviewDto ParseTextContent(string fileName, string textContent);
+    Task<UploadedFileInfo> SaveAndParseFileAsync(string projectId, IFormFile file, CancellationToken cancellationToken = default);
+    Task<DocumentPreviewDto> ParseTextContentAsync(string fileName, string textContent, CancellationToken cancellationToken = default);
     string UploadsDirectory { get; }
 }
 
@@ -27,12 +30,19 @@ public class DocumentParserService : IDocumentParserService
 {
     private readonly string _uploadsBaseDir;
     private readonly ILogger<DocumentParserService> _logger;
+    private readonly HttpClient _httpClient;
+
+    private static readonly Regex IsoRegex = new Regex(@"\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b", RegexOptions.Compiled);
+    private static readonly Regex RocRegex = new Regex(@"(?:民國)?\s*([1-9]\d{1,2})\s*[年/.]\s*(0?[1-9]|1[0-2])\s*[月/.]\s*(0?[1-9]|[12]\d|3[01])\s*日?", RegexOptions.Compiled);
+    private static readonly Regex CnRegex = new Regex(@"(20\d{2})\s*年\s*(0?[1-9]|1[0-2])\s*月\s*(0?[1-9]|[12]\d|3[01])\s*日?", RegexOptions.Compiled);
+    private static readonly string[] Keywords = new[] { "報告", "繳交", "截止", "期中", "期末", "初稿", "結案", "審查", "計畫", "交付", "里程碑", "D-Day", "Milestone" };
 
     public string UploadsDirectory => _uploadsBaseDir;
 
-    public DocumentParserService(IConfiguration configuration, ILogger<DocumentParserService> logger)
+    public DocumentParserService(IConfiguration configuration, ILogger<DocumentParserService> logger, HttpClient httpClient)
     {
         _logger = logger;
+        _httpClient = httpClient;
         string configuredUploads = configuration["Storage:UploadsPath"] ?? string.Empty;
         if (string.IsNullOrWhiteSpace(configuredUploads))
         {
@@ -46,12 +56,10 @@ public class DocumentParserService : IDocumentParserService
         }
 
         Directory.CreateDirectory(_uploadsBaseDir);
-
-        // Register code pages for ExcelDataReader
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    public async Task<UploadedFileInfo> SaveAndParseFileAsync(string projectId, IFormFile file)
+    public async Task<UploadedFileInfo> SaveAndParseFileAsync(string projectId, IFormFile file, CancellationToken cancellationToken = default)
     {
         string projectUploadDir = Path.Combine(_uploadsBaseDir, projectId);
         Directory.CreateDirectory(projectUploadDir);
@@ -63,11 +71,11 @@ public class DocumentParserService : IDocumentParserService
 
         using (var stream = new FileStream(filePath, FileMode.Create))
         {
-            await file.CopyToAsync(stream);
+            await file.CopyToAsync(stream, cancellationToken);
         }
 
         string extractedText = ExtractTextFromFile(filePath);
-        var preview = ParseTextContent(safeFileName, extractedText);
+        var preview = await ParseTextContentAsync(safeFileName, extractedText, cancellationToken);
 
         var uploadedFileInfo = new UploadedFileInfo
         {
@@ -90,21 +98,16 @@ public class DocumentParserService : IDocumentParserService
             switch (ext)
             {
                 case ".txt":
-                    return File.ReadAllText(filePath, Encoding.UTF8);
-
                 case ".csv":
+                case ".md":
                     return File.ReadAllText(filePath, Encoding.UTF8);
-
                 case ".pdf":
                     return ExtractTextFromPdf(filePath);
-
                 case ".docx":
                     return ExtractTextFromDocx(filePath);
-
                 case ".xlsx":
                 case ".xls":
                     return ExtractTextFromExcel(filePath);
-
                 default:
                     return File.ReadAllText(filePath, Encoding.UTF8);
             }
@@ -167,30 +170,149 @@ public class DocumentParserService : IDocumentParserService
         return sb.ToString();
     }
 
-    public DocumentPreviewDto ParseTextContent(string fileName, string textContent)
+    public async Task<DocumentPreviewDto> ParseTextContentAsync(string fileName, string textContent, CancellationToken cancellationToken = default)
     {
-        var result = new DocumentPreviewDto
+        var llmResult = await ParseWithLlmAsync(fileName, textContent, cancellationToken);
+        if (llmResult != null && llmResult.ExtractedItems != null && llmResult.ExtractedItems.Any())
         {
-            FileName = fileName,
-            ExtractedItems = new List<ParsedItem>()
+            return llmResult;
+        }
+
+        return ParseHeuristic(fileName, textContent);
+    }
+
+    private async Task<DocumentPreviewDto?> ParseWithLlmAsync(string fileName, string textContent, CancellationToken cancellationToken = default)
+    {
+        string? openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        string? geminiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+
+        if (string.IsNullOrWhiteSpace(openAiKey) && string.IsNullOrWhiteSpace(geminiKey))
+            return null;
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(openAiKey))
+                return await CallOpenAiAsync(fileName, textContent, openAiKey, cancellationToken);
+            else if (!string.IsNullOrWhiteSpace(geminiKey))
+                return await CallGeminiAsync(fileName, textContent, geminiKey, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "LLM parsing failed. Falling back to heuristic.");
+        }
+        return null;
+    }
+
+    private async Task<DocumentPreviewDto?> CallOpenAiAsync(string fileName, string textContent, string apiKey, CancellationToken cancellationToken = default)
+    {
+        string prompt = GetLlmPrompt(fileName, textContent);
+        var requestBody = new
+        {
+            model = "gpt-4o",
+            response_format = new { type = "json_object" },
+            messages = new[] { new { role = "system", content = prompt } }
         };
 
-        if (string.IsNullOrWhiteSpace(textContent))
-            return result;
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        request.Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode) throw new Exception($"OpenAI Error: {response.StatusCode}");
+
+        var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var document = JsonDocument.Parse(responseString);
+        string content = document.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
+
+        return FormatLlmResult(content, fileName);
+    }
+
+    private async Task<DocumentPreviewDto?> CallGeminiAsync(string fileName, string textContent, string apiKey, CancellationToken cancellationToken = default)
+    {
+        string prompt = GetLlmPrompt(fileName, textContent);
+        var requestBody = new
+        {
+            contents = new[] { new { parts = new[] { new { text = prompt } } } },
+            generationConfig = new { responseMimeType = "application/json" }
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={apiKey}");
+        request.Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode) throw new Exception($"Gemini Error: {response.StatusCode}");
+
+        var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var document = JsonDocument.Parse(responseString);
+        string content = document.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? "";
+
+        return FormatLlmResult(content, fileName);
+    }
+
+    private string GetLlmPrompt(string fileName, string text)
+    {
+        string truncatedText = text.Length > 10000 ? text.Substring(0, 10000) : text;
+        return $@"You are an expert contract analyst. Extract project milestones from the following contract text.
+For each milestone, extract the following 5 dimensions:
+1. title (String)
+2. dayOffset (Number, D+N days)
+3. deliverables (Array of Strings)
+4. penaltyTerms (String)
+5. clauseReference (String)
+
+Return JSON format: {{ ""milestones"": [ {{ ""title"": ""..."", ""dayOffset"": 30, ""deliverables"": [""...""], ""penaltyTerms"": ""..."", ""clauseReference"": ""..."" }} ] }}
+
+Contract Name: {fileName}
+Text: {truncatedText}";
+    }
+
+    private DocumentPreviewDto FormatLlmResult(string jsonContent, string fileName)
+    {
+        var result = new DocumentPreviewDto { FileName = fileName, ExtractedItems = new List<ParsedItem>() };
+        try
+        {
+            using var doc = JsonDocument.Parse(jsonContent);
+            if (doc.RootElement.TryGetProperty("milestones", out var milestones))
+            {
+                foreach (var m in milestones.EnumerateArray())
+                {
+                    int dayOffset = m.TryGetProperty("dayOffset", out var dObj) && dObj.ValueKind == JsonValueKind.Number ? dObj.GetInt32() : 30;
+                    string title = m.TryGetProperty("title", out var tObj) ? tObj.GetString() ?? "Unknown Milestone" : "Unknown Milestone";
+                    
+                    var deliverables = new List<string>();
+                    if (m.TryGetProperty("deliverables", out var deliv) && deliv.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var d in deliv.EnumerateArray()) deliverables.Add(d.GetString() ?? "");
+                    }
+
+                    string penaltyTerms = m.TryGetProperty("penaltyTerms", out var pObj) ? pObj.GetString() ?? "" : "";
+                    string clauseRef = m.TryGetProperty("clauseReference", out var cObj) ? cObj.GetString() ?? "" : "";
+
+                    result.ExtractedItems.Add(new ParsedItem
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        Title = title,
+                        ExtractedDate = DateTime.UtcNow.AddDays(dayOffset),
+                        RawText = $"AI parsed from: {fileName}",
+                        Confidence = 0.95,
+                        Deliverables = deliverables,
+                        PenaltyTerms = penaltyTerms,
+                        ClauseReference = clauseRef,
+                        DayOffset = dayOffset
+                    });
+                }
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    private DocumentPreviewDto ParseHeuristic(string fileName, string textContent)
+    {
+        var result = new DocumentPreviewDto { FileName = fileName, ExtractedItems = new List<ParsedItem>() };
+        if (string.IsNullOrWhiteSpace(textContent)) return result;
 
         var lines = textContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-
-        // Regex patterns for Dates:
-        // 1. ISO: 2026-08-15, 2026/08/15, 2026.08.15
-        var isoRegex = new Regex(@"\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b");
-
-        // 2. ROC: 115年8月15日, 民國115/08/15
-        var rocRegex = new Regex(@"(?:民國)?\s*([1-9]\d{1,2})\s*[年/.]\s*(0?[1-9]|1[0-2])\s*[月/.]\s*(0?[1-9]|[12]\d|3[01])\s*日?");
-
-        // 3. Standard Chinese Date: 2026年8月15日
-        var cnRegex = new Regex(@"(20\d{2})\s*年\s*(0?[1-9]|1[0-2])\s*月\s*(0?[1-9]|[12]\d|3[01])\s*日?");
-
-        var keywords = new[] { "報告", "繳交", "截止", "期中", "期末", "初稿", "結案", "審查", "計畫", "交付", "里程碑", "D-Day", "Milestone" };
 
         foreach (var line in lines)
         {
@@ -199,20 +321,16 @@ public class DocumentParserService : IDocumentParserService
 
             DateTime? extractedDate = null;
 
-            // Match ISO
-            var isoMatch = isoRegex.Match(cleanLine);
+            var isoMatch = IsoRegex.Match(cleanLine);
             if (isoMatch.Success)
             {
                 if (DateTime.TryParse($"{isoMatch.Groups[1].Value}-{isoMatch.Groups[2].Value.PadLeft(2, '0')}-{isoMatch.Groups[3].Value.PadLeft(2, '0')}", out DateTime dt))
-                {
                     extractedDate = dt;
-                }
             }
 
-            // Match ROC
             if (!extractedDate.HasValue)
             {
-                var rocMatch = rocRegex.Match(cleanLine);
+                var rocMatch = RocRegex.Match(cleanLine);
                 if (rocMatch.Success)
                 {
                     if (int.TryParse(rocMatch.Groups[1].Value, out int rocYear) &&
@@ -228,33 +346,23 @@ public class DocumentParserService : IDocumentParserService
                 }
             }
 
-            // Match CN
             if (!extractedDate.HasValue)
             {
-                var cnMatch = cnRegex.Match(cleanLine);
+                var cnMatch = CnRegex.Match(cleanLine);
                 if (cnMatch.Success)
                 {
                     if (DateTime.TryParse($"{cnMatch.Groups[1].Value}-{cnMatch.Groups[2].Value.PadLeft(2, '0')}-{cnMatch.Groups[3].Value.PadLeft(2, '0')}", out DateTime dt))
-                    {
                         extractedDate = dt;
-                    }
                 }
             }
 
             if (extractedDate.HasValue)
             {
                 double confidence = 0.7;
-                if (keywords.Any(k => cleanLine.Contains(k, StringComparison.OrdinalIgnoreCase)))
-                {
+                if (Keywords.Any(k => cleanLine.Contains(k, StringComparison.OrdinalIgnoreCase)))
                     confidence = 0.95;
-                }
 
-                // Extract title by stripping out date text or taking line prefix/suffix
-                string titleCandidate = cleanLine;
-                if (titleCandidate.Length > 80)
-                {
-                    titleCandidate = titleCandidate.Substring(0, 80) + "...";
-                }
+                string titleCandidate = cleanLine.Length > 80 ? cleanLine.Substring(0, 80) + "..." : cleanLine;
 
                 result.ExtractedItems.Add(new ParsedItem
                 {
@@ -262,7 +370,11 @@ public class DocumentParserService : IDocumentParserService
                     Title = titleCandidate,
                     ExtractedDate = extractedDate.Value,
                     RawText = cleanLine,
-                    Confidence = confidence
+                    Confidence = confidence,
+                    DayOffset = 30, // fallback value
+                    Deliverables = new List<string> { titleCandidate },
+                    PenaltyTerms = "逾期每日按本案合約總價千分之一計罰違約金",
+                    ClauseReference = "參照標案需求說明書"
                 });
             }
         }

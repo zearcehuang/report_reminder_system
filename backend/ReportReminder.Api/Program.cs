@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ReportReminder.Api.Services;
+using ReportReminder.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,12 +32,17 @@ builder.Services.AddCors(options =>
 // Services DI
 builder.Services.AddSingleton<IJsonStoreService, JsonStoreService>();
 builder.Services.AddHttpClient<IDgpaHolidayService, DgpaHolidayService>();
-builder.Services.AddScoped<IDocumentParserService, DocumentParserService>();
+builder.Services.AddHttpClient<IDocumentParserService, DocumentParserService>();
 builder.Services.AddHttpClient<ITeamsWebhookService, TeamsWebhookService>();
+builder.Services.AddHostedService<ReminderBackgroundService>();
+
+builder.WebHost.UseUrls("http://*:5000");
 
 var app = builder.Build();
 
 // Configure HTTP request pipeline.
+app.UseMiddleware<GlobalExceptionMiddleware>();
+
 if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 {
     app.UseSwagger();

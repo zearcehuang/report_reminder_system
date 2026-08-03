@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { Project, ProjectOwner, Contact } from '../types';
 import { Calendar, Clock, Sparkles, Save, Info, User, Mail, Plus, Trash2, Users, Tag, ShieldCheck, Edit2, Check, X } from 'lucide-react';
 
@@ -20,7 +20,7 @@ const PRESET_ROLES = [
   '自訂角色',
 ];
 
-export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milestoneCount, contacts = [] }) => {
+export const DDayControl: React.FC<Props> = memo(({ project, onUpdateProject, milestoneCount, contacts = [] }) => {
   const [dDay, setDDay] = useState(project.dDay);
   const [projectOwners, setProjectOwners] = useState<ProjectOwner[]>([]);
   const [noticeDaysList, setNoticeDaysList] = useState<number[]>([]);
@@ -639,5 +639,5 @@ export const DDayControl: React.FC<Props> = ({ project, onUpdateProject, milesto
       </div>
     </div>
   );
-};
+});
 

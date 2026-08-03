@@ -1,14 +1,20 @@
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { readJsonSync } = require('../services/jsonStore');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'report_reminder_system_secret_key_2026';
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const ROLES_FILE = path.join(DATA_DIR, 'roles.json');
 
-if (!process.env.JWT_SECRET) {
-  console.warn('⚠️  [SECURITY] JWT_SECRET is using default fallback key. Set JWT_SECRET environment variable for production.');
+// Initialize JWT Secret dynamically if not provided in environment variables
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  // Generate a random 256-bit (32 byte) key and encode as hex
+  JWT_SECRET = crypto.randomBytes(32).toString('hex');
+  console.warn(`⚠️ [SECURITY] JWT_SECRET is not set in environment variables.`);
+  console.warn(`⚠️ [SECURITY] Using dynamically generated secure random key for this session.`);
+  console.warn(`⚠️ [SECURITY] NOTE: Active sessions will be invalidated upon server restart! Set JWT_SECRET in .env to prevent this.`);
 }
 
 function getUsers() {

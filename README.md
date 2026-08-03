@@ -46,6 +46,10 @@
   - 在履約里程碑規則與報告編輯視窗中，提供專案團隊角色「一鍵多選/全選」快速挑選功能。
 - 🔄 **雙向狀態管理（標記為已繳交 / 改為未繳交）**：
   - 靈活切換里程碑報告之繳交狀態，即時更新儀表板與時間軸進度。
+- ⚡ **全系統效能極致優化與極速響應 (Performance & Architecture Optimization)**：
+  - **Node.js 檔案 I/O 與記憶體優化**：採用原生 `structuredClone` 深拷貝替換傳統 JSON 序列化，修復 Promise 寫入鎖 (`fileLocks`) 記憶體自動釋放機制，並整合 HTTP 回應壓縮 (`compression`) 與靜態資源 `Cache-Control` 長效快取標頭。
+  - **React 細粒度渲染與動態 Code-Splitting**：全面於 `App.tsx` 導入 `useCallback` 配合子組件 `React.memo` 避免二次重繪 (Re-render)，並對重量級彈窗視窗導入 `React.lazy()` 與 `Suspense` 動態分割載入。
+  - **ASP.NET Core C# 異步與正則編譯最佳化**：全介面支援 `CancellationToken` 取消機制防止 Thread Pool Starvation，並採用 `static readonly` Compiled Regex 降低文本解析時的記憶體分配。
 - 🎨 **明亮現代質感 UI 與 Dropdown 高對比配色 (Bright Modern Light Theme)**：
   - 採用高閱讀性 Light Slate 色彩系統、Glassmorphism 視覺設計與極致微動畫。
   - 全數下拉選單（包含頂部導覽選單與全系統 `<select>` / `<option>`）進行高對比白底黑字與紫色選中樣式優化，解決深色模式下文字不可見之體驗瑕疵。
@@ -54,8 +58,8 @@
 
 ## 🛠️ 技術架構 (Tech Stack)
 
-- **前端 (Frontend)**：React 18, TypeScript, Vite 5.x, Lucide React (圖示庫), Vanilla CSS (Design Tokens & CSS Variables), `useAppModals` 狀態管理 Hook, `fetchApi` 歸一化請求層
-- **後端 (Backend)**：Node.js Express 4.x (模組化 `routes/`, `services/`, `middleware/`), `jsonwebtoken` (JWT 驗證), `joi` (Schema 輸入驗證), `asyncHandler` (全域 Async 錯誤捕獲), `passwordService` (scrypt 密碼 Hash 雜湊), `AiContractParser` (五維度合約解析服務), `SchedulerService` (常駐背景排程器), C# .NET API/Tests 相容層 (`ReportReminder.Api`, `ReportReminder.Tests`)
+- **前端 (Frontend)**：React 18 (React.lazy / Code-Splitting / memo), TypeScript, Vite 5.x, Lucide React (圖示庫), Vanilla CSS (Design Tokens & CSS Variables), `useAppModals` 狀態管理 Hook, `fetchApi` 歸一化請求層
+- **後端 (Backend)**：Node.js Express 4.x (模組化 `routes/`, `services/`, `middleware/`), `compression` (Gzip HTTP 回應壓縮), `jsonwebtoken` (JWT 驗證), `joi` (Schema 輸入驗證), `asyncHandler` (全域 Async 錯誤捕獲), `passwordService` (scrypt 密碼 Hash 雜湊), `jsonStore` (structuredClone 深拷貝與 Promise 鎖優化), `AiContractParser` (五維度合約解析服務), `SchedulerService` (常駐背景排程器), C# .NET API/Tests 相容層 (`ReportReminder.Api`, `ReportReminder.Tests`, `CancellationToken` & Compiled Regex 優化)
 - **資料儲存 (Data Storage)**：JSON 檔案儲存庫與記憶體寫入快取 (位於 `./data/` 目錄，包含 `projects.json`, `holidays.json`, `contacts.json`, `notification_logs.json`, `users.json`, `roles.json`)
 
 ---

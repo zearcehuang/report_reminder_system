@@ -44,4 +44,8 @@ public class ParsedItem
     public DateTime? ExtractedDate { get; set; }
     public string RawText { get; set; } = string.Empty;
     public double Confidence { get; set; } = 1.0;
+    public int DayOffset { get; set; } = 0;
+    public List<string> Deliverables { get; set; } = new();
+    public string PenaltyTerms { get; set; } = string.Empty;
+    public string ClauseReference { get; set; } = string.Empty;
 }

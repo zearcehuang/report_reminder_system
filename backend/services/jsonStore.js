@@ -8,16 +8,22 @@ class JsonStoreEventEmitter extends EventEmitter {}
 const jsonStoreEvents = new JsonStoreEventEmitter();
 
 const jsonCache = new Map();
+const fileLocks = new Map(); // Promise chain mutex for concurrent writes
+
+function deepClone(obj) {
+  if (obj === undefined) return undefined;
+  return typeof structuredClone === 'function' ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
+}
 
 function readJsonSync(filePath, defaultValue) {
   if (jsonCache.has(filePath)) {
-    return jsonCache.get(filePath);
+    return deepClone(jsonCache.get(filePath));
   }
   try {
     if (!fs.existsSync(filePath)) return defaultValue;
     const content = fs.readFileSync(filePath, 'utf8');
     const data = JSON.parse(content);
-    jsonCache.set(filePath, data);
+    jsonCache.set(filePath, deepClone(data));
     return data;
   } catch (err) {
     if (err instanceof SyntaxError) {
@@ -37,13 +43,13 @@ function readJsonSync(filePath, defaultValue) {
 
 async function readJson(filePath, defaultValue) {
   if (jsonCache.has(filePath)) {
-    return jsonCache.get(filePath);
+    return deepClone(jsonCache.get(filePath));
   }
   try {
     if (!fs.existsSync(filePath)) return defaultValue;
     const content = await fsPromises.readFile(filePath, 'utf8');
     const data = JSON.parse(content);
-    jsonCache.set(filePath, data);
+    jsonCache.set(filePath, deepClone(data));
     return data;
   } catch (err) {
     if (err instanceof SyntaxError) {
@@ -62,31 +68,45 @@ async function readJson(filePath, defaultValue) {
 }
 
 async function writeJson(filePath, data) {
-  jsonCache.set(filePath, data);
-  jsonStoreEvents.emit('change', filePath, data);
+  const clonedData = deepClone(data);
+  jsonCache.set(filePath, clonedData);
+  jsonStoreEvents.emit('change', filePath, clonedData);
   
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    await fsPromises.mkdir(dir, { recursive: true });
-  }
-
-  const tmpPath = `${filePath}.tmp.${Date.now()}`;
-  try {
-    await fsPromises.writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
-    await fsPromises.rename(tmpPath, filePath); // Atomic replacement
-  } catch (err) {
-    logError('JSON_WRITE_ERROR', err, { filePath });
-    // Clean up tmp file if it exists and wasn't renamed
-    if (fs.existsSync(tmpPath)) {
-      await fsPromises.unlink(tmpPath).catch(() => {});
+  const currentLock = fileLocks.get(filePath) || Promise.resolve();
+  
+  const nextLock = currentLock.then(async () => {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      await fsPromises.mkdir(dir, { recursive: true });
     }
-    throw err;
-  }
+
+    const tmpPath = `${filePath}.tmp.${Date.now()}`;
+    try {
+      await fsPromises.writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
+      await fsPromises.rename(tmpPath, filePath); // Atomic replacement
+    } catch (err) {
+      logError('JSON_WRITE_ERROR', err, { filePath });
+      if (fs.existsSync(tmpPath)) {
+        await fsPromises.unlink(tmpPath).catch(() => {});
+      }
+      throw err;
+    }
+  });
+
+  const finalLock = nextLock.catch(() => {}).finally(() => {
+    if (fileLocks.get(filePath) === finalLock) {
+      fileLocks.delete(filePath);
+    }
+  });
+
+  fileLocks.set(filePath, finalLock);
+  return nextLock;
 }
 
 function writeJsonSync(filePath, data) {
-  jsonCache.set(filePath, data);
-  jsonStoreEvents.emit('change', filePath, data);
+  const clonedData = deepClone(data);
+  jsonCache.set(filePath, clonedData);
+  jsonStoreEvents.emit('change', filePath, clonedData);
   
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {

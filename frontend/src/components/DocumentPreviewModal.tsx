@@ -38,6 +38,12 @@ export const DocumentPreviewModal: React.FC<Props> = ({
     );
   };
 
+  const handleUpdateMilestone = (id: string, field: keyof ExtractedMilestone, value: any) => {
+    setMilestones((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m))
+    );
+  };
+
   const handleToggleSelectAll = (select: boolean) => {
     setMilestones((prev) => prev.map((m) => ({ ...m, selected: select })));
   };
@@ -147,9 +153,23 @@ export const DocumentPreviewModal: React.FC<Props> = ({
 
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                      <h4 style={{ fontSize: '0.95rem', color: m.selected ? '#0f172a' : '#334155', fontWeight: 700 }}>
-                        {m.title}
-                      </h4>
+                      <input 
+                        type="text" 
+                        value={m.title} 
+                        onChange={(e) => handleUpdateMilestone(m.id, 'title', e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ 
+                          fontSize: '0.95rem', 
+                          color: m.selected ? '#0f172a' : '#334155', 
+                          fontWeight: 700, 
+                          border: '1px solid transparent',
+                          borderBottom: '1px dashed #cbd5e1',
+                          background: 'transparent',
+                          width: '100%',
+                          maxWidth: '300px',
+                          outline: 'none'
+                        }} 
+                      />
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{
                           background: '#e0e7ff',
@@ -159,8 +179,17 @@ export const DocumentPreviewModal: React.FC<Props> = ({
                           fontSize: '0.75rem',
                           fontFamily: 'var(--font-mono)',
                           fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem'
                         }}>
-                          D + {m.dayOffset ?? 0} 天 ({m.matchedDate || (m as any).date || '未指定死線'})
+                          D + <input 
+                                type="number" 
+                                value={m.dayOffset ?? 0}
+                                onChange={(e) => handleUpdateMilestone(m.id, 'dayOffset', parseInt(e.target.value) || 0)}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ width: '40px', background: 'transparent', border: 'none', borderBottom: '1px dashed #818cf8', color: '#3730a3', fontWeight: 700, textAlign: 'center', outline: 'none' }}
+                              /> 天 ({m.matchedDate || (m as any).date || '未指定死線'})
                         </span>
                         <button
                           className="btn-icon"
@@ -215,15 +244,43 @@ export const DocumentPreviewModal: React.FC<Props> = ({
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#b45309', fontWeight: 700, marginBottom: '0.15rem' }}>
                             <Scale size={14} /> ⚖️ 逾期違約罰則 (Penalty Terms):
                           </div>
-                          <div style={{ color: '#78350f', fontWeight: 600 }}>
-                            {penaltyTerms}
-                          </div>
+                          <textarea
+                            value={penaltyTerms}
+                            onChange={(e) => handleUpdateMilestone(m.id, 'penaltyTerms', e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ 
+                              color: '#78350f', 
+                              fontWeight: 600,
+                              width: '100%',
+                              background: 'transparent',
+                              border: '1px solid transparent',
+                              borderBottom: '1px dashed #fcd34d',
+                              resize: 'none',
+                              outline: 'none',
+                              minHeight: '2.5rem'
+                            }}
+                          />
                         </div>
 
                         {/* Clause Reference */}
                         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.75rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <BookOpen size={14} color="#6366f1" />
-                          <span>📜 條文依據: <strong style={{ color: '#334155' }}>{clauseRef}</strong></span>
+                          <BookOpen size={14} color="#6366f1" style={{ flexShrink: 0 }} />
+                          <span style={{ whiteSpace: 'nowrap' }}>📜 條文依據:</span>
+                          <input 
+                            type="text" 
+                            value={clauseRef}
+                            onChange={(e) => handleUpdateMilestone(m.id, 'clauseReference', e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ 
+                              color: '#334155', 
+                              fontWeight: 600,
+                              background: 'transparent',
+                              border: 'none',
+                              borderBottom: '1px dashed #cbd5e1',
+                              width: '100%',
+                              outline: 'none'
+                            }}
+                          />
                         </div>
                       </div>
                     )}

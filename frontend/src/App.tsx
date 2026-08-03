@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { MilestoneRule, DocumentExtractResult, ExtractedMilestone, ScheduleItem } from './types';
 import { Navbar } from './components/Navbar';
 import { DDayControl } from './components/DDayControl';
@@ -9,8 +9,8 @@ import { useAppModals } from './hooks/useModals';
 import { Sparkles, AlertCircle, Layers, Clock, FileText } from 'lucide-react';
 import { useAppData } from './hooks/useAppData';
 import { DashboardSummary } from './components/DashboardSummary';
-import { GlobalModalContainer } from './components/GlobalModalContainer';
 
+const GlobalModalContainer = React.lazy(() => import('./components/GlobalModalContainer').then(module => ({ default: module.GlobalModalContainer })));
 export const App: React.FC = () => {
   const appData = useAppData();
   const modals = useAppModals();
@@ -18,12 +18,12 @@ export const App: React.FC = () => {
   const [extractResult, setExtractResult] = useState<DocumentExtractResult | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'rules' | 'timeline'>('dashboard');
 
-  const handleDocumentExtractSuccess = (result: DocumentExtractResult) => {
+  const handleDocumentExtractSuccess = useCallback((result: DocumentExtractResult) => {
     setExtractResult(result);
     modals.documentPreview.open();
-  };
+  }, [modals.documentPreview]);
 
-  const handleConfirmImportDocumentMilestones = async (selected: ExtractedMilestone[]) => {
+  const handleConfirmImportDocumentMilestones = useCallback(async (selected: ExtractedMilestone[]) => {
     if (!appData.activeProject) return;
     const newRules: MilestoneRule[] = selected.map((m, idx) => ({
       id: `rule-${appData.activeProject!.id}-ext-${Date.now()}-${idx}`,
@@ -34,20 +34,20 @@ export const App: React.FC = () => {
       enabled: true,
     }));
     await appData.handleSaveRules(newRules);
-  };
+  }, [appData.activeProject, appData.handleSaveRules]);
 
-  const handleAddReport = async (newRule: MilestoneRule) => {
+  const handleAddReport = useCallback(async (newRule: MilestoneRule) => {
     if (!appData.activeProject) return;
     const updated = [...appData.rules, newRule];
     await appData.handleSaveRules(updated);
-  };
+  }, [appData.activeProject, appData.rules, appData.handleSaveRules]);
 
-  const handleEditRule = (rule: MilestoneRule) => {
+  const handleEditRule = useCallback((rule: MilestoneRule) => {
     setEditingRule(rule);
     modals.editReport.open();
-  };
+  }, [modals.editReport]);
 
-  const handleEditScheduleDate = (scheduleItem: ScheduleItem) => {
+  const handleEditScheduleDate = useCallback((scheduleItem: ScheduleItem) => {
     const matchedRule = appData.rules.find(r => r.id === scheduleItem.ruleId || r.id === scheduleItem.id);
     if (matchedRule) {
       setEditingRule(matchedRule);
@@ -62,9 +62,9 @@ export const App: React.FC = () => {
       });
     }
     modals.editReport.open();
-  };
+  }, [appData.rules, appData.activeProject?.id, modals.editReport]);
 
-  const handleSaveEditedRule = async (updatedRule: MilestoneRule) => {
+  const handleSaveEditedRule = useCallback(async (updatedRule: MilestoneRule) => {
     if (!appData.activeProject) return;
     const existingIdx = appData.rules.findIndex(r => r.id === updatedRule.id);
     let nextRules: MilestoneRule[];
@@ -77,7 +77,7 @@ export const App: React.FC = () => {
     await appData.handleSaveRules(nextRules);
     modals.editReport.close();
     setEditingRule(null);
-  };
+  }, [appData.activeProject, appData.rules, appData.handleSaveRules, modals.editReport]);
 
   if (appData.isLoading) {
     return (
@@ -239,25 +239,27 @@ export const App: React.FC = () => {
         專案報告繳交提醒系統 © 2026 | Report Submission Reminder System
       </footer>
 
-      <GlobalModalContainer
-        modals={modals}
-        projects={appData.projects}
-        activeProject={appData.activeProject}
-        contacts={appData.contacts}
-        currentUser={appData.currentUser}
-        extractResult={extractResult}
-        editingRule={editingRule}
-        setEditingRule={setEditingRule}
-        setCurrentUser={appData.setCurrentUser}
-        handleSelectProject={appData.handleSelectProject}
-        handleCreateProject={appData.handleCreateProject}
-        handleDeleteProject={appData.handleDeleteProject}
-        handleBatchDeleteProjects={appData.handleBatchDeleteProjects}
-        handleHolidayOrContactUpdated={appData.handleHolidayOrContactUpdated}
-        handleConfirmImportDocumentMilestones={handleConfirmImportDocumentMilestones}
-        handleAddReport={handleAddReport}
-        handleSaveEditedRule={handleSaveEditedRule}
-      />
+      <React.Suspense fallback={null}>
+        <GlobalModalContainer
+          modals={modals}
+          projects={appData.projects}
+          activeProject={appData.activeProject}
+          contacts={appData.contacts}
+          currentUser={appData.currentUser}
+          extractResult={extractResult}
+          editingRule={editingRule}
+          setEditingRule={setEditingRule}
+          setCurrentUser={appData.setCurrentUser}
+          handleSelectProject={appData.handleSelectProject}
+          handleCreateProject={appData.handleCreateProject}
+          handleDeleteProject={appData.handleDeleteProject}
+          handleBatchDeleteProjects={appData.handleBatchDeleteProjects}
+          handleHolidayOrContactUpdated={appData.handleHolidayOrContactUpdated}
+          handleConfirmImportDocumentMilestones={handleConfirmImportDocumentMilestones}
+          handleAddReport={handleAddReport}
+          handleSaveEditedRule={handleSaveEditedRule}
+        />
+      </React.Suspense>
     </div>
   );
 };

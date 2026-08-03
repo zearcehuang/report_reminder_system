@@ -4,7 +4,101 @@
  * 支援萃取履約名稱、D+N 天數、交付產出物清單、逾期罰則條文與原始條文索引 (合約五維度 Schema)
  */
 
+const { logError } = require('./services/errorLogger');
+
 class AiContractParser {
+  static async parseWithLlm(text = '', fileName = '') {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
+
+    if (!openaiKey && !geminiKey) {
+      console.log('[AiContractParser] No API key found. Falling back to heuristic rules.');
+      return this.parse(text, fileName);
+    }
+
+    try {
+      if (openaiKey) {
+        return await this.callOpenAI(text, fileName, openaiKey);
+      } else if (geminiKey) {
+        return await this.callGemini(text, fileName, geminiKey);
+      }
+    } catch (err) {
+      logError('LLM_PARSER', err, { fileName });
+      console.error('[AiContractParser] LLM parsing failed. Falling back to heuristic rules.');
+      return this.parse(text, fileName);
+    }
+  }
+
+  static async callOpenAI(text, fileName, apiKey) {
+    const prompt = this.getPrompt(text, fileName);
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'system', content: prompt }]
+      })
+    });
+
+    if (!res.ok) throw new Error(`OpenAI API Error: ${res.status}`);
+    const data = await res.json();
+    const result = JSON.parse(data.choices[0].message.content);
+    return this.formatLlmResult(result, fileName);
+  }
+
+  static async callGemini(text, fileName, apiKey) {
+    const prompt = this.getPrompt(text, fileName);
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json' }
+      })
+    });
+
+    if (!res.ok) throw new Error(`Gemini API Error: ${res.status}`);
+    const data = await res.json();
+    const resultText = data.candidates[0].content.parts[0].text;
+    const result = JSON.parse(resultText);
+    return this.formatLlmResult(result, fileName);
+  }
+
+  static getPrompt(text, fileName) {
+    return `You are an expert contract analyst. Extract project milestones from the following contract text.
+For each milestone, extract the following 5 dimensions:
+1. title (String)
+2. dayOffset (Number, D+N days)
+3. deliverables (Array of Strings)
+4. penaltyTerms (String)
+5. clauseReference (String)
+
+Return JSON format: { "milestones": [ { "title": "...", "dayOffset": 30, "deliverables": ["..."], "penaltyTerms": "...", "clauseReference": "..." } ] }
+
+Contract Name: ${fileName}
+Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
+`;
+  }
+
+  static formatLlmResult(result, fileName) {
+    if (!result || !Array.isArray(result.milestones)) return [];
+    return result.milestones.map((m, idx) => ({
+      id: `ext-item-${Date.now()}-${idx + 1}`,
+      originalText: `AI parsed from: ${fileName}`,
+      title: m.title || 'Unknown Milestone',
+      dayOffset: m.dayOffset || 30,
+      deliverables: Array.isArray(m.deliverables) ? m.deliverables : [],
+      penaltyTerms: m.penaltyTerms || '逾期每日按本案合約總價千分之一計罰違約金',
+      clauseReference: m.clauseReference || '參照標案需求說明書',
+      confidence: 95,
+      selected: true
+    }));
+  }
+
   static parse(text = '', fileName = '') {
     const cleanText = text.trim();
     const lines = cleanText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -64,40 +158,35 @@ class AiContractParser {
     const extractedItems = [];
 
     predefinedTemplates.forEach((template, idx) => {
-      // Find matching text snippet in uploaded document
       const matchingLine = lines.find(l => l.includes(template.keyword) || l.includes(template.title));
       
-      // Per-template independent offset search (not shared global match)
       let dayOffset = template.defaultOffset;
-      let confidenceScore = 50; // Base confidence if no text match
+      let confidenceScore = 50;
 
       if (cleanText) {
-        // Search for offset near the keyword context for this specific template
         const keywordIdx = cleanText.indexOf(template.keyword);
-        const contextRadius = 300; // characters around keyword to search
+        const contextRadius = 300;
         let contextText = cleanText;
         
         if (keywordIdx >= 0) {
           const start = Math.max(0, keywordIdx - contextRadius);
           const end = Math.min(cleanText.length, keywordIdx + contextRadius);
           contextText = cleanText.substring(start, end);
-          confidenceScore = 85; // Keyword found in document
+          confidenceScore = 85;
         }
 
-        // Search for D+N or date offset patterns in the context
         const offsetReg = /(?:D\+|第|簽約後)\s*(\d+)\s*(?:日|天|個月)/g;
         let match;
         while ((match = offsetReg.exec(contextText)) !== null) {
           const parsedDays = parseInt(match[1], 10);
           if (!isNaN(parsedDays) && parsedDays > 0) {
             dayOffset = parsedDays;
-            confidenceScore = Math.min(98, confidenceScore + 10); // Higher confidence with offset match
-            break; // Use the first match near this keyword
+            confidenceScore = Math.min(98, confidenceScore + 10);
+            break;
           }
         }
       }
 
-      // Boost confidence if exact matching line found
       if (matchingLine) {
         confidenceScore = Math.min(98, confidenceScore + 5);
       }

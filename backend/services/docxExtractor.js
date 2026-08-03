@@ -3,6 +3,14 @@ const path = require('path');
 const { logError } = require('./errorLogger');
 const AiContractParser = require('../AiContractParser');
 
+// Dynamic import for pdf-parse
+let pdfParse = null;
+try {
+  pdfParse = require('pdf-parse');
+} catch (e) {
+  console.warn('pdf-parse module not found, PDF extraction may be degraded.');
+}
+
 function extractTextFromDocx(filePath) {
   return new Promise((resolve) => {
     try {
@@ -46,12 +54,34 @@ function extractTextFromDocx(filePath) {
   });
 }
 
+async function extractTextFromPdf(filePath) {
+  if (!pdfParse) return '';
+  try {
+    const dataBuffer = fs.readFileSync(filePath);
+    const data = await pdfParse(dataBuffer);
+    return data.text;
+  } catch (err) {
+    logError('PDF_EXTRACT', err, { filePath });
+    return '';
+  }
+}
+
 async function parseDocumentItems(filePath, fileName, dDayStr) {
   let text = '';
   const ext = path.extname(fileName).toLowerCase();
 
   if (ext === '.docx') {
     text = await extractTextFromDocx(filePath);
+  } else if (ext === '.pdf') {
+    text = await extractTextFromPdf(filePath);
+  } else if (['.txt', '.md'].includes(ext)) {
+    try {
+      if (fs.existsSync(filePath)) {
+        text = fs.readFileSync(filePath, 'utf8');
+      }
+    } catch (e) {
+      logError('PARSE_DOC', e, { filePath, fileName });
+    }
   } else {
     try {
       if (fs.existsSync(filePath)) {
@@ -141,7 +171,7 @@ async function parseDocumentItems(filePath, fileName, dDayStr) {
   });
 
   if (items.length === 0) {
-    const aiItems = AiContractParser.parse(text, fileName);
+    const aiItems = await AiContractParser.parseWithLlm(text, fileName);
     items.push(...aiItems.map(item => ({
       ...item,
       date: item.matchedDate || '2026-06-30',
@@ -166,5 +196,6 @@ async function parseDocumentItems(filePath, fileName, dDayStr) {
 
 module.exports = {
   extractTextFromDocx,
+  extractTextFromPdf,
   parseDocumentItems
 };

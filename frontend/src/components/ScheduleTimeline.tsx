@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { ScheduleItem, Project } from '../types';
 import { Clock, CheckCircle2, AlertTriangle, Send, Calendar, User, Search, ShieldAlert, Sparkles, Filter, RotateCcw, Trash2, FilePlus, Edit3 } from 'lucide-react';
 import { OutlookMeetingModal } from './OutlookMeetingModal';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   project: Project;
@@ -14,7 +15,7 @@ interface Props {
   onEditScheduleDate?: (scheduleItem: ScheduleItem) => void;
 }
 
-export const ScheduleTimeline: React.FC<Props> = ({
+export const ScheduleTimeline: React.FC<Props> = memo(({
   project,
   schedules,
   onToggleSubmitted,
@@ -29,6 +30,7 @@ export const ScheduleTimeline: React.FC<Props> = ({
   const [selectedScheduleForOutlook, setSelectedScheduleForOutlook] = useState<ScheduleItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const toast = useToast();
 
   // Filtered schedules
   const filtered = schedules.filter((s) => {
@@ -40,32 +42,46 @@ export const ScheduleTimeline: React.FC<Props> = ({
   });
 
   const handleDeleteSingle = async (item: ScheduleItem) => {
-    if (window.confirm(`確定要刪除「${item.title}」此履約報告繳交項目嗎？`)) {
-      setIsDeleting(true);
-      try {
-        if (onDeleteSchedule) {
-          await onDeleteSchedule(item.id);
+    toast.confirm(
+      '刪除履約項目',
+      `確定要刪除「${item.title}」此履約報告繳交項目嗎？此動作無法復原。`,
+      async () => {
+        setIsDeleting(true);
+        try {
+          if (onDeleteSchedule) {
+            await onDeleteSchedule(item.id);
+            toast.success(`成功刪除 ${item.title}`);
+          }
+          setSelectedIds(selectedIds.filter(id => id !== item.id));
+        } catch (err: any) {
+          toast.error(err.message || '刪除失敗');
+        } finally {
+          setIsDeleting(false);
         }
-        setSelectedIds(selectedIds.filter(id => id !== item.id));
-      } finally {
-        setIsDeleting(false);
       }
-    }
+    );
   };
 
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (window.confirm(`確定要刪除選取的 ${selectedIds.length} 個履約報告繳交項目嗎？此動作無法復原。`)) {
-      setIsDeleting(true);
-      try {
-        if (onBatchDeleteSchedules) {
-          await onBatchDeleteSchedules(selectedIds);
+    toast.confirm(
+      '批次刪除',
+      `確定要刪除選取的 ${selectedIds.length} 個履約報告繳交項目嗎？此動作無法復原。`,
+      async () => {
+        setIsDeleting(true);
+        try {
+          if (onBatchDeleteSchedules) {
+            await onBatchDeleteSchedules(selectedIds);
+            toast.success(`成功刪除 ${selectedIds.length} 筆項目`);
+          }
+          setSelectedIds([]);
+        } catch (err: any) {
+          toast.error(err.message || '批次刪除失敗');
+        } finally {
+          setIsDeleting(false);
         }
-        setSelectedIds([]);
-      } finally {
-        setIsDeleting(false);
       }
-    }
+    );
   };
 
   const getStatusBadge = (status: ScheduleItem['status']) => {
@@ -459,4 +475,4 @@ export const ScheduleTimeline: React.FC<Props> = ({
       />
     </div>
   );
-};
+});

@@ -15,6 +15,7 @@ import {
   RoleItem,
 } from '../types';
 import { errorLogger } from './logger';
+import { toastManager } from '../context/ToastContext';
 
 async function fetchApi<T>(
   url: string,
@@ -40,9 +41,23 @@ async function fetchApi<T>(
       const data = await res.json();
       return { ok: true, data };
     }
+    
+    // Parse structured exception response if available
+    let errorMsg = `HTTP Error ${res.status}`;
+    try {
+      const errData = await res.json();
+      if (errData && errData.message) {
+        errorMsg = errData.message;
+      }
+    } catch { }
+
+    errorLogger.log('API', 'WARN', `Fetch failed for ${url}: ${errorMsg}`);
+    toastManager.addToast('error', errorMsg);
+    
     return { ok: false, data: fallback as T };
   } catch (err: any) {
     errorLogger.log('API', 'WARN', `Fetch failed for ${url}: ${err?.message || err}`);
+    toastManager.addToast('error', err?.message || 'Network request failed');
     return { ok: false, data: fallback as T };
   }
 }

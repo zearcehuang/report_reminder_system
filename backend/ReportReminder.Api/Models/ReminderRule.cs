@@ -10,5 +10,6 @@ public class ReminderRule
     public int DayOffset { get; set; } // e.g. -5, 0, 7, 14
     public List<string> Owners { get; set; } = new();
     public bool IsCompleted { get; set; }
+    public bool Enabled { get; set; } = true;
     public DateTime? ExplicitDate { get; set; }
 }

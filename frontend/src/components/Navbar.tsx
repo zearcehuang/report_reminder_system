@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { Project, UserSession } from '../types';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import {
@@ -32,7 +32,7 @@ interface Props {
   onOpenUserPermissionModal: () => void;
 }
 
-export const Navbar: React.FC<Props> = ({
+export const Navbar: React.FC<Props> = memo(({
   projects,
   activeProject,
   currentUser = { id: '1', email: 'admin@company.com', name: '系統最高管理員', role: 'Admin' },
@@ -430,4 +430,4 @@ export const Navbar: React.FC<Props> = ({
       </div>
     </header>
   );
-};
+});

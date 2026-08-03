@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Project } from '../types';
 import { Calendar, Layers, CheckCircle2, Sparkles } from 'lucide-react';
 
@@ -10,7 +10,7 @@ interface DashboardSummaryProps {
   shiftedCount: number;
 }
 
-export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
+export const DashboardSummary: React.FC<DashboardSummaryProps> = memo(({
   activeProject,
   totalMilestones,
   submittedCount,
@@ -60,4 +60,4 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
       </div>
     </div>
   );
-};
+});

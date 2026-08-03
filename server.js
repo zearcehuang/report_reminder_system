@@ -1,7 +1,9 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const compression = require('compression');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -13,6 +15,7 @@ const { logError, getErrorLogs } = require('./backend/services/errorLogger');
 const { initSeedData } = require('./backend/services/seedService');
 
 // Express Settings
+app.use(compression());
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -77,7 +80,14 @@ app.all('/api/*', (req, res) => {
 // Serve Frontend Static Bundle if Built
 const FRONTEND_DIST = path.join(__dirname, 'frontend', 'dist');
 if (fs.existsSync(FRONTEND_DIST)) {
-  app.use(express.static(FRONTEND_DIST));
+  app.use(express.static(FRONTEND_DIST, {
+    maxAge: '1y',
+    setHeaders: (res, staticPath) => {
+      if (staticPath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    }
+  }));
   app.get('*', (req, res) => {
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });

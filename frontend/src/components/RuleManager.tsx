@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { MilestoneRule, Contact, Project } from '../types';
 import { Layers, Plus, Check, FilePlus } from 'lucide-react';
 import { RuleBatchToolbar } from './RuleManager/RuleBatchToolbar';
 import { RuleItemRow } from './RuleManager/RuleItemRow';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   projectId: string;
@@ -17,7 +18,7 @@ interface Props {
   activeProject?: Project | null;
 }
 
-export const RuleManager: React.FC<Props> = ({
+export const RuleManager: React.FC<Props> = memo(({
   projectId,
   rules,
   contacts,
@@ -33,6 +34,7 @@ export const RuleManager: React.FC<Props> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
+  const toast = useToast();
 
   useEffect(() => {
     setLocalRules(rules);
@@ -97,28 +99,46 @@ export const RuleManager: React.FC<Props> = ({
 
   const handleRemoveRule = async (index: number) => {
     const targetRule = localRules[index];
-    if (window.confirm(`確定要刪除規則「${targetRule.title}」嗎？`)) {
-      if (onDeleteRule && targetRule.id) {
-        await onDeleteRule(projectId, targetRule.id);
+    toast.confirm(
+      '刪除履約規則',
+      `確定要刪除規則「${targetRule.title}」嗎？`,
+      async () => {
+        try {
+          if (onDeleteRule && targetRule.id) {
+            await onDeleteRule(projectId, targetRule.id);
+            toast.success(`成功刪除規則：${targetRule.title}`);
+          }
+          const next = localRules.filter((_, i) => i !== index);
+          setLocalRules(next);
+          setSelectedRuleIds(selectedRuleIds.filter(id => id !== targetRule.id));
+          setHasChanges(true);
+        } catch (err: any) {
+          toast.error(err.message || '刪除規則失敗');
+        }
       }
-      const next = localRules.filter((_, i) => i !== index);
-      setLocalRules(next);
-      setSelectedRuleIds(selectedRuleIds.filter(id => id !== targetRule.id));
-      setHasChanges(true);
-    }
+    );
   };
 
   const handleBatchDeleteRules = async () => {
     if (selectedRuleIds.length === 0) return;
-    if (window.confirm(`確定要刪除選取的 ${selectedRuleIds.length} 項履約規則嗎？`)) {
-      if (onBatchDeleteRules) {
-        await onBatchDeleteRules(projectId, selectedRuleIds);
+    toast.confirm(
+      '批次刪除規則',
+      `確定要刪除選取的 ${selectedRuleIds.length} 項履約規則嗎？`,
+      async () => {
+        try {
+          if (onBatchDeleteRules) {
+            await onBatchDeleteRules(projectId, selectedRuleIds);
+            toast.success(`成功刪除 ${selectedRuleIds.length} 項規則`);
+          }
+          const next = localRules.filter(r => !selectedRuleIds.includes(r.id));
+          setLocalRules(next);
+          setSelectedRuleIds([]);
+          setHasChanges(true);
+        } catch (err: any) {
+          toast.error(err.message || '批次刪除規則失敗');
+        }
       }
-      const next = localRules.filter(r => !selectedRuleIds.includes(r.id));
-      setLocalRules(next);
-      setSelectedRuleIds([]);
-      setHasChanges(true);
-    }
+    );
   };
 
   const toggleSelectRule = (id: string) => {
@@ -142,6 +162,9 @@ export const RuleManager: React.FC<Props> = ({
     try {
       await onSaveRules(localRules);
       setHasChanges(false);
+      toast.success('履約規則與負責人已成功儲存');
+    } catch (err: any) {
+      toast.error(err.message || '儲存失敗');
     } finally {
       setIsSaving(false);
     }
@@ -219,4 +242,4 @@ export const RuleManager: React.FC<Props> = ({
       </div>
     </div>
   );
-};
+});
