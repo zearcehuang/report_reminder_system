@@ -77,16 +77,16 @@ export const UserTabContent: React.FC<UserTabContentProps> = ({
 
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           {selectedUserIds.length > 0 && (
-            <button className="btn-secondary" style={{ color: '#ef4444', borderColor: '#ef4444' }} onClick={handleBatchDelete}>
+            <button type="button" className="btn-secondary" style={{ color: '#ef4444', borderColor: '#ef4444' }} onClick={handleBatchDelete}>
               <Trash2 size={15} /> 刪除選取 ({selectedUserIds.length})
             </button>
           )}
 
-          <button className="btn-secondary" onClick={onImportContacts} title="由 Outlook 企業通訊錄中一鍵自動建立使用者帳號">
+          <button type="button" className="btn-secondary" onClick={onImportContacts} title="由 Outlook 企業通訊錄中一鍵自動建立使用者帳號">
             <Download size={15} /> 從通訊錄一鍵同步
           </button>
 
-          <button className="btn-primary" onClick={handleOpenCreateUser}>
+          <button type="button" className="btn-primary" onClick={handleOpenCreateUser}>
             <UserPlus size={16} /> 新增使用者
           </button>
         </div>

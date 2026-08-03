@@ -40,14 +40,29 @@ public class ReminderBackgroundService : BackgroundService
                 nextRun = nextRun.AddDays(1);
             }
 
-            var delay = nextRun - now;
-            _logger.LogInformation($"Next scan scheduled at {nextRun} (in {delay.TotalHours:F2} hours)");
-
-            await Task.Delay(delay, stoppingToken);
-
-            if (!stoppingToken.IsCancellationRequested)
+            try
             {
-                await RunScanAndNotifyAsync(stoppingToken);
+                var delay = nextRun - now;
+                _logger.LogInformation($"Next scan scheduled at {nextRun} (in {delay.TotalHours:F2} hours)");
+
+                await Task.Delay(delay, stoppingToken);
+
+                if (!stoppingToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await RunScanAndNotifyAsync(stoppingToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error occurred during scheduled RunScanAndNotifyAsync. Service will continue next cycle.");
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Background service delay cancelled for graceful shutdown.");
+                break;
             }
         }
         
@@ -63,6 +78,8 @@ public class ReminderBackgroundService : BackgroundService
 
         foreach (var project in projects)
         {
+            try
+            {
             if (string.IsNullOrWhiteSpace(project.TeamsWebhookUrl)) continue;
 
             foreach (var rule in project.Rules)
@@ -113,6 +130,11 @@ public class ReminderBackgroundService : BackgroundService
                     _logger.LogInformation($"Triggering notification for {project.ProjectName} - {rule.Title}");
                     await _teamsWebhookService.SendNotificationAsync(payload);
                 }
+            }
+            } // End of try block
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error processing notifications for project {project.ProjectCode} ({project.ProjectName}). Continuing with next project.");
             }
         }
     }

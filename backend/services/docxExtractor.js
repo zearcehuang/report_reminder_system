@@ -13,42 +13,50 @@ try {
 
 function extractTextFromDocx(filePath) {
   return new Promise((resolve) => {
+    let tempZip = '';
+    let destDir = '';
     try {
-      const tempZip = filePath + '_' + Date.now() + '.zip';
+      tempZip = filePath + '_' + Date.now() + '.zip';
       fs.copyFileSync(filePath, tempZip);
-      const destDir = path.join(path.dirname(filePath), 'temp_unzip_' + Date.now());
+      destDir = path.join(path.dirname(filePath), 'temp_unzip_' + Date.now());
       const psCmd = `powershell -Command "Expand-Archive -Path '${tempZip.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force"`;
       
       require('child_process').exec(psCmd, { timeout: 30000 }, (error) => {
-        if (error) {
-          logError('DOCX_EXTRACT', error, { filePath });
-          resolve('');
-          return;
-        }
-        
-        const docXmlPath = path.join(destDir, 'word', 'document.xml');
-        let xml = '';
-        if (fs.existsSync(docXmlPath)) {
-          xml = fs.readFileSync(docXmlPath, 'utf8');
-        }
-        
         try {
-          fs.rmSync(tempZip, { force: true });
-          fs.rmSync(destDir, { recursive: true, force: true });
-        } catch (e) {}
-
-        resolve(xml
-          .replace(/<\/w:p>/g, '\n')
-          .replace(/<\/w:tr>/g, '\n===ROW===\n')
-          .replace(/<\/w:tc>/g, ' [CELL] ')
-          .replace(/<[^>]+>/g, '')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&amp;/g, '&')
-          .replace(/&quot;/g, '"'));
+          if (error) {
+            logError('DOCX_EXTRACT', error, { filePath });
+            resolve('');
+            return;
+          }
+          
+          const docXmlPath = path.join(destDir, 'word', 'document.xml');
+          let xml = '';
+          if (fs.existsSync(docXmlPath)) {
+            xml = fs.readFileSync(docXmlPath, 'utf8');
+          }
+          
+          resolve(xml
+            .replace(/<\/w:p>/g, '\n')
+            .replace(/<\/w:tr>/g, '\n===ROW===\n')
+            .replace(/<\/w:tc>/g, ' [CELL] ')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"'));
+        } finally {
+          try {
+            if (tempZip) fs.rmSync(tempZip, { force: true });
+            if (destDir) fs.rmSync(destDir, { recursive: true, force: true });
+          } catch (e) {}
+        }
       });
     } catch (err) {
       logError('DOCX_EXTRACT', err, { filePath });
+      try {
+        if (tempZip) fs.rmSync(tempZip, { force: true });
+        if (destDir) fs.rmSync(destDir, { recursive: true, force: true });
+      } catch (e) {}
       resolve('');
     }
   });

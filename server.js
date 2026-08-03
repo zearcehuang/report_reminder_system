@@ -74,7 +74,9 @@ app.get('/api/logs/errors', (req, res) => {
 
 // API 404 Handler
 app.all('/api/*', (req, res) => {
-  res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.originalUrl}` });
+  const msg = `API endpoint not found: ${req.method} ${req.originalUrl}`;
+  logError('API_404', msg, { method: req.method, url: req.originalUrl });
+  res.status(404).json({ error: msg });
 });
 
 // Serve Frontend Static Bundle if Built

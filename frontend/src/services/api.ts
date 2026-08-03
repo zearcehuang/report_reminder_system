@@ -74,18 +74,17 @@ async function fetchApi<T>(
       let errorMsg = `HTTP Error ${res.status}`;
       try {
         const errData = await res.json();
-        if (errData && errData.message) {
-          errorMsg = errData.message;
+        if (errData) {
+          errorMsg = errData.error || errData.message || errData.detail || errorMsg;
         }
       } catch { }
 
-      errorLogger.log('API', 'WARN', `Fetch failed for ${url}: ${errorMsg}`);
-      toastManager.addToast('error', errorMsg);
+      errorLogger.log('API', 'ERROR', `Fetch failed for ${url}: ${errorMsg}`);
       
       return { ok: false, data: fallback as T };
     } catch (err: any) {
-      errorLogger.log('API', 'WARN', `Fetch failed for ${url}: ${err?.message || err}`);
-      toastManager.addToast('error', err?.message || 'Network request failed');
+      const errorMsg = err?.message || 'Network request failed';
+      errorLogger.log('API', 'ERROR', `Fetch failed for ${url}: ${errorMsg}`);
       return { ok: false, data: fallback as T };
     } finally {
       if (isGet && cacheKey) {

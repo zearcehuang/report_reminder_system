@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { Shield, Users, X, AlertCircle, Sparkles } from 'lucide-react';
 import { UserTabContent } from './UserPermissionModal/UserTabContent';
 import { RoleTabContent } from './UserPermissionModal/RoleTabContent';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export const UserPermissionModal: React.FC<Props> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (isOpen) {
@@ -110,20 +112,37 @@ export const UserPermissionModal: React.FC<Props> = ({
   };
 
   const handleDeleteUser = async (id: string, name: string) => {
-    if (!window.confirm(`確定要刪除使用者「${name}」嗎？`)) return;
-    const ok = await api.deleteUser(id);
-    if (ok) {
-      showNotification(`已刪除使用者 ${name}`);
-      await loadData();
-    }
+    toast.confirm(
+      '刪除使用者',
+      `確定要刪除使用者「${name}」嗎？`,
+      async () => {
+        const ok = await api.deleteUser(id);
+        if (ok) {
+          showNotification(`已刪除使用者 ${name}`);
+          toast.success(`已刪除使用者 ${name}`);
+          await loadData();
+        } else {
+          toast.error('刪除使用者失敗');
+        }
+      }
+    );
   };
 
   const handleBatchDeleteUsers = async (ids: string[]) => {
-    const ok = await api.batchDeleteUsers(ids);
-    if (ok) {
-      showNotification(`已成功批次刪除 ${ids.length} 位使用者`);
-      await loadData();
-    }
+    toast.confirm(
+      '批次刪除使用者',
+      `確定要刪除選取的 ${ids.length} 位使用者嗎？`,
+      async () => {
+        const ok = await api.batchDeleteUsers(ids);
+        if (ok) {
+          showNotification(`已成功批次刪除 ${ids.length} 位使用者`);
+          toast.success(`已成功批次刪除 ${ids.length} 位使用者`);
+          await loadData();
+        } else {
+          toast.error('批次刪除使用者失敗');
+        }
+      }
+    );
   };
 
   const handleImportContacts = async () => {
@@ -166,17 +185,24 @@ export const UserPermissionModal: React.FC<Props> = ({
 
   const handleDeleteRole = async (role: RoleItem) => {
     if (role.isSystem) {
-      alert('無法刪除系統預設角色 (Admin/PM/Auditor)');
+      toast.warning('無法刪除系統預設角色 (Admin/PM/Auditor)');
       return;
     }
-    if (!window.confirm(`確定要刪除自訂角色「${role.name}」嗎？`)) return;
-    const res = await api.deleteRole(role.id);
-    if (res.success) {
-      showNotification(`已刪除角色 ${role.name}`);
-      await loadData();
-    } else {
-      setError(res.error || '刪除角色失敗');
-    }
+    toast.confirm(
+      '刪除角色',
+      `確定要刪除自訂角色「${role.name}」嗎？`,
+      async () => {
+        const res = await api.deleteRole(role.id);
+        if (res.success) {
+          showNotification(`已刪除角色 ${role.name}`);
+          toast.success(`已刪除角色 ${role.name}`);
+          await loadData();
+        } else {
+          setError(res.error || '刪除角色失敗');
+          toast.error(res.error || '刪除角色失敗');
+        }
+      }
+    );
   };
 
   return (

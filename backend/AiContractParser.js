@@ -31,41 +31,69 @@ class AiContractParser {
 
   static async callOpenAI(text, fileName, apiKey) {
     const prompt = this.getPrompt(text, fileName);
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: prompt }]
-      })
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          response_format: { type: 'json_object' },
+          messages: [{ role: 'system', content: prompt }]
+        }),
+        signal: controller.signal
+      });
 
-    if (!res.ok) throw new Error(`OpenAI API Error: ${res.status}`);
-    const data = await res.json();
-    const result = JSON.parse(data.choices[0].message.content);
-    return this.formatLlmResult(result, fileName);
+      if (!res.ok) throw new Error(`OpenAI API Error: ${res.status}`);
+      const data = await res.json();
+      const cleanContent = this.cleanJsonString(data.choices[0].message.content);
+      const result = JSON.parse(cleanContent);
+      return this.formatLlmResult(result, fileName);
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   static async callGemini(text, fileName, apiKey) {
     const prompt = this.getPrompt(text, fileName);
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json' }
-      })
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: 'application/json' }
+        }),
+        signal: controller.signal
+      });
 
-    if (!res.ok) throw new Error(`Gemini API Error: ${res.status}`);
-    const data = await res.json();
-    const resultText = data.candidates[0].content.parts[0].text;
-    const result = JSON.parse(resultText);
-    return this.formatLlmResult(result, fileName);
+      if (!res.ok) throw new Error(`Gemini API Error: ${res.status}`);
+      const data = await res.json();
+      const resultText = data.candidates[0].content.parts[0].text;
+      const cleanContent = this.cleanJsonString(resultText);
+      const result = JSON.parse(cleanContent);
+      return this.formatLlmResult(result, fileName);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  static cleanJsonString(str) {
+    if (!str) return '{}';
+    let clean = str.trim();
+    clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+      return clean.substring(firstBrace, lastBrace + 1);
+    }
+    return clean;
   }
 
   static getPrompt(text, fileName) {

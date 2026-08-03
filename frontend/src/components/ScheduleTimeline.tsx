@@ -198,6 +198,7 @@ export const ScheduleTimeline: React.FC<Props> = memo(({
 
         {selectedIds.length > 0 && (
           <button
+            type="button"
             onClick={handleBatchDelete}
             disabled={isDeleting}
             style={{

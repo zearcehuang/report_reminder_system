@@ -217,10 +217,13 @@ public class DocumentParserService : IDocumentParserService
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         request.Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
 
-        var response = await _httpClient.SendAsync(request, cancellationToken);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
+
+        var response = await _httpClient.SendAsync(request, cts.Token);
         if (!response.IsSuccessStatusCode) throw new Exception($"OpenAI Error: {response.StatusCode}");
 
-        var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+        var responseString = await response.Content.ReadAsStringAsync(cts.Token);
         using var document = JsonDocument.Parse(responseString);
         string content = document.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
 
@@ -239,10 +242,13 @@ public class DocumentParserService : IDocumentParserService
         var request = new HttpRequestMessage(HttpMethod.Post, $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={apiKey}");
         request.Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
 
-        var response = await _httpClient.SendAsync(request, cancellationToken);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
+
+        var response = await _httpClient.SendAsync(request, cts.Token);
         if (!response.IsSuccessStatusCode) throw new Exception($"Gemini Error: {response.StatusCode}");
 
-        var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+        var responseString = await response.Content.ReadAsStringAsync(cts.Token);
         using var document = JsonDocument.Parse(responseString);
         string content = document.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? "";
 
@@ -271,6 +277,7 @@ Text: {truncatedText}";
         var result = new DocumentPreviewDto { FileName = fileName, ExtractedItems = new List<ParsedItem>() };
         try
         {
+            jsonContent = CleanJsonString(jsonContent);
             using var doc = JsonDocument.Parse(jsonContent);
             if (doc.RootElement.TryGetProperty("milestones", out var milestones))
             {
@@ -305,6 +312,27 @@ Text: {truncatedText}";
         }
         catch { }
         return result;
+    }
+
+    private string CleanJsonString(string str)
+    {
+        if (string.IsNullOrWhiteSpace(str)) return "{}";
+        string clean = str.Trim();
+        if (clean.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
+            clean = clean.Substring(7);
+        else if (clean.StartsWith("```", StringComparison.OrdinalIgnoreCase))
+            clean = clean.Substring(3);
+        if (clean.EndsWith("```"))
+            clean = clean.Substring(0, clean.Length - 3);
+
+        clean = clean.Trim();
+        int firstBrace = clean.IndexOf('{');
+        int lastBrace = clean.LastIndexOf('}');
+        if (firstBrace != -1 && lastBrace != -1 && lastBrace >= firstBrace)
+        {
+            return clean.Substring(firstBrace, lastBrace - firstBrace + 1);
+        }
+        return clean;
     }
 
     private DocumentPreviewDto ParseHeuristic(string fileName, string textContent)

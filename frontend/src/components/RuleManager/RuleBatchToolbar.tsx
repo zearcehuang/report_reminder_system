@@ -37,6 +37,7 @@ export const RuleBatchToolbar: React.FC<RuleBatchToolbarProps> = ({
 
       {selectedCount > 0 && (
         <button
+          type="button"
           onClick={onBatchDelete}
           style={{
             background: '#ef4444',

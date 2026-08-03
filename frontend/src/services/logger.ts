@@ -1,3 +1,5 @@
+import { toastManager } from '../context/ToastContext';
+
 export interface LogEntry {
   id: string;
   timestamp: string;
@@ -25,6 +27,14 @@ export const errorLogger = {
     if (frontendLogs.length > 100) frontendLogs.pop();
 
     console.error(`🚨 [${source}] [${level}] ${message}`, stack || '', extra || '');
+
+    if (level === 'ERROR') {
+      try {
+        toastManager.addToast('error', message);
+      } catch (e) {
+        // ignore if ToastProvider is not mounted
+      }
+    }
   },
 
   getLogs(): LogEntry[] {

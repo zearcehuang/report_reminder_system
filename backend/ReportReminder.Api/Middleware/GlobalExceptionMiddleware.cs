@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -33,17 +34,31 @@ public class GlobalExceptionMiddleware
     private static Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         context.Response.ContentType = "application/json";
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+
+        var statusCode = exception switch
+        {
+            KeyNotFoundException => StatusCodes.Status404NotFound,
+            ArgumentException => StatusCodes.Status400BadRequest,
+            UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
+            InvalidOperationException => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        context.Response.StatusCode = statusCode;
+
+        var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        var isDevelopment = env == "Development";
 
         var response = new
         {
             success = false,
-            message = "內部伺服器錯誤 (Internal Server Error)",
-            errorDetails = exception.Message, // Include simple message. In production, this might be hidden based on environment.
-            statusCode = context.Response.StatusCode
+            message = statusCode == 500 ? "內部伺服器錯誤 (Internal Server Error)" : exception.Message,
+            errorDetails = isDevelopment ? exception.StackTrace : null,
+            errorCode = exception.GetType().Name,
+            statusCode = statusCode
         };
 
-        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
         return context.Response.WriteAsync(JsonSerializer.Serialize(response, jsonOptions));
     }
 }

@@ -43,7 +43,7 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
       {confirmDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50" style={{ zIndex: 99999 }}>
           <div className="bg-slate-800 text-white rounded-lg p-6 shadow-xl max-w-sm w-full mx-4 border border-white/10">
             <h3 className="text-lg font-medium mb-4">{confirmDialog.title}</h3>
             <p className="text-slate-300 mb-6">{confirmDialog.message}</p>

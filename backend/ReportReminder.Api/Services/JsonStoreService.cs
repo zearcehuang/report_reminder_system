@@ -144,7 +144,9 @@ public class JsonStoreService : IJsonStoreService
             }
 
             string updatedJson = JsonSerializer.Serialize(projects, _jsonOptions);
-            await File.WriteAllTextAsync(_projectsFilePath, updatedJson, cancellationToken);
+            string tempPath = _projectsFilePath + ".tmp." + Guid.NewGuid();
+            await File.WriteAllTextAsync(tempPath, updatedJson, cancellationToken);
+            File.Move(tempPath, _projectsFilePath, overwrite: true);
             _projectsCache = new List<Project>(projects);
         }
         finally
@@ -164,7 +166,9 @@ public class JsonStoreService : IJsonStoreService
             projects.RemoveAll(p => p.Id == id);
 
             string updatedJson = JsonSerializer.Serialize(projects, _jsonOptions);
-            await File.WriteAllTextAsync(_projectsFilePath, updatedJson, cancellationToken);
+            string tempPath = _projectsFilePath + ".tmp." + Guid.NewGuid();
+            await File.WriteAllTextAsync(tempPath, updatedJson, cancellationToken);
+            File.Move(tempPath, _projectsFilePath, overwrite: true);
             _projectsCache = new List<Project>(projects);
         }
         finally
@@ -218,7 +222,9 @@ public class JsonStoreService : IJsonStoreService
 
             var updatedList = dict.Values.OrderBy(h => h.Date).ToList();
             string updatedJson = JsonSerializer.Serialize(updatedList, _jsonOptions);
-            await File.WriteAllTextAsync(_holidaysFilePath, updatedJson, cancellationToken);
+            string tempPath = _holidaysFilePath + ".tmp." + Guid.NewGuid();
+            await File.WriteAllTextAsync(tempPath, updatedJson, cancellationToken);
+            File.Move(tempPath, _holidaysFilePath, overwrite: true);
             _holidaysCache = new List<Holiday>(updatedList);
         }
         finally
@@ -273,7 +279,9 @@ public class JsonStoreService : IJsonStoreService
 
             var updatedList = dict.Values.ToList();
             string updatedJson = JsonSerializer.Serialize(updatedList, _jsonOptions);
-            await File.WriteAllTextAsync(_contactsFilePath, updatedJson, cancellationToken);
+            string tempPath = _contactsFilePath + ".tmp." + Guid.NewGuid();
+            await File.WriteAllTextAsync(tempPath, updatedJson, cancellationToken);
+            File.Move(tempPath, _contactsFilePath, overwrite: true);
             _contactsCache = new List<Contact>(updatedList);
         }
         finally

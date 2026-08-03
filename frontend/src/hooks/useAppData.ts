@@ -57,7 +57,8 @@ export const useAppData = () => {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    await api.deleteProject(projectId);
+    const ok = await api.deleteProject(projectId);
+    if (!ok) throw new Error('刪除專案失敗');
     const updatedList = await api.getProjects();
     setProjects(updatedList);
     if (activeProject && activeProject.id === projectId) {
@@ -73,7 +74,8 @@ export const useAppData = () => {
   };
 
   const handleBatchDeleteProjects = async (projectIds: string[]) => {
-    await api.batchDeleteProjects(projectIds);
+    const ok = await api.batchDeleteProjects(projectIds);
+    if (!ok) throw new Error('批次刪除專案失敗');
     const updatedList = await api.getProjects();
     setProjects(updatedList);
     if (activeProject && projectIds.includes(activeProject.id)) {
@@ -107,23 +109,27 @@ export const useAppData = () => {
 
   const handleDeleteSchedule = async (scheduleId: string) => {
     if (!activeProject) return;
-    await api.deleteRule(activeProject.id, scheduleId);
+    const ok = await api.deleteRule(activeProject.id, scheduleId);
+    if (!ok) throw new Error('刪除履約項目失敗');
     await loadProjectDetails(activeProject.id);
   };
 
   const handleBatchDeleteSchedules = async (scheduleIds: string[]) => {
     if (!activeProject) return;
-    await api.batchDeleteRules(activeProject.id, scheduleIds);
+    const ok = await api.batchDeleteRules(activeProject.id, scheduleIds);
+    if (!ok) throw new Error('批次刪除履約項目失敗');
     await loadProjectDetails(activeProject.id);
   };
 
   const handleDeleteRule = async (projectId: string, ruleId: string) => {
-    await api.deleteRule(projectId, ruleId);
+    const ok = await api.deleteRule(projectId, ruleId);
+    if (!ok) throw new Error('刪除里程碑規則失敗');
     await loadProjectDetails(projectId);
   };
 
   const handleBatchDeleteRules = async (projectId: string, ruleIds: string[]) => {
-    await api.batchDeleteRules(projectId, ruleIds);
+    const ok = await api.batchDeleteRules(projectId, ruleIds);
+    if (!ok) throw new Error('批次刪除里程碑規則失敗');
     await loadProjectDetails(projectId);
   };
 

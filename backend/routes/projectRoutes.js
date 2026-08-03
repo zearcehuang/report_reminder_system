@@ -2,6 +2,7 @@ const express = require('express');
 const projectService = require('../services/projectService');
 const { requirePermission } = require('../middleware/authMiddleware');
 const { validateBody, schemas } = require('../middleware/validation');
+const { logError } = require('../services/errorLogger');
 
 const router = express.Router();
 
@@ -11,6 +12,7 @@ router.get('/', (req, res) => {
     const projects = projectService.getAllProjects();
     res.json(projects);
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });
@@ -21,6 +23,7 @@ router.post('/', requirePermission('projects:write'), validateBody(schemas.creat
     const newProj = projectService.createProject(req.body);
     res.json(newProj);
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });
@@ -32,6 +35,7 @@ router.put('/:id', requirePermission('projects:write'), (req, res) => {
     if (!updatedProj) return res.status(404).json({ error: 'Project not found' });
     res.json(updatedProj);
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });
@@ -42,6 +46,7 @@ router.delete('/:id', requirePermission('projects:delete'), (req, res) => {
     projectService.deleteProject(req.params.id);
     res.json({ success: true });
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });
@@ -54,6 +59,7 @@ router.post('/batch-delete', requirePermission('projects:delete'), (req, res) =>
     const count = projectService.batchDeleteProjects(ids);
     res.json({ success: true, count });
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });
@@ -65,6 +71,7 @@ router.delete('/:projectId/rules/:ruleId', requirePermission('rules:write'), (re
     if (!success) return res.status(404).json({ error: 'Project not found' });
     res.json({ success: true });
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });
@@ -80,6 +87,7 @@ router.post('/:projectId/rules/batch-delete', requirePermission('rules:write'), 
     
     res.json({ success: true, count });
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });
@@ -91,6 +99,7 @@ router.get('/:id/schedules', (req, res) => {
     if (!result) return res.status(404).json({ error: 'Project not found' });
     res.json(result);
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });
@@ -102,6 +111,7 @@ router.get('/:id/rules', (req, res) => {
     if (!rules) return res.status(404).json({ error: 'Project not found' });
     res.json(rules);
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });
@@ -113,6 +123,7 @@ router.post('/:id/rules', requirePermission('rules:write'), (req, res) => {
     if (!rules) return res.status(404).json({ error: 'Project not found' });
     res.json(rules);
   } catch (error) {
+    logError('PROJECT_ROUTE', error, { url: req.originalUrl, method: req.method });
     res.status(500).json({ error: error.message });
   }
 });

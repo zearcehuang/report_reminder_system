@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
 import { FolderPlus, X, Calendar, Clock, Check, Briefcase, Trash2, CheckSquare, Square, User, Mail } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   isOpen: boolean;
@@ -28,11 +29,12 @@ export const ProjectManagerModal: React.FC<Props> = ({
   const [name, setName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
-  const [dDay, setDDay] = useState('2026-08-01');
-  const [advanceNoticeDays, setAdvanceNoticeDays] = useState(7);
+  const [dDay, setDDay] = useState(new Date().toISOString().split('T')[0]);
+  const [advanceNoticeDays, setAdvanceNoticeDays] = useState(3);
   const [submitting, setSubmitting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const toast = useToast();
 
   if (!isOpen) return null;
 
@@ -53,28 +55,42 @@ export const ProjectManagerModal: React.FC<Props> = ({
   };
 
   const handleDeleteSingle = async (proj: Project) => {
-    if (window.confirm(`確定要刪除專案「[${proj.code}] ${proj.name}」嗎？刪除後無法復原。`)) {
-      setIsDeleting(true);
-      try {
-        await onDeleteProject(proj.id);
-        setSelectedIds(selectedIds.filter(id => id !== proj.id));
-      } finally {
-        setIsDeleting(false);
+    toast.confirm(
+      '刪除專案',
+      `確定要刪除專案「[${proj.code}] ${proj.name}」嗎？刪除後無法復原。`,
+      async () => {
+        setIsDeleting(true);
+        try {
+          await onDeleteProject(proj.id);
+          setSelectedIds((prev) => prev.filter(id => id !== proj.id));
+          toast.success(`成功刪除專案：${proj.name}`);
+        } catch (err: any) {
+          toast.error(err.message || '刪除專案失敗');
+        } finally {
+          setIsDeleting(false);
+        }
       }
-    }
+    );
   };
 
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (window.confirm(`確定要刪除選取的 ${selectedIds.length} 個專案嗎？此動作無法復原。`)) {
-      setIsDeleting(true);
-      try {
-        await onBatchDeleteProjects(selectedIds);
-        setSelectedIds([]);
-      } finally {
-        setIsDeleting(false);
+    toast.confirm(
+      '批次刪除專案',
+      `確定要刪除選取的 ${selectedIds.length} 個專案嗎？此動作無法復原。`,
+      async () => {
+        setIsDeleting(true);
+        try {
+          await onBatchDeleteProjects(selectedIds);
+          setSelectedIds([]);
+          toast.success(`成功刪除 ${selectedIds.length} 個專案`);
+        } catch (err: any) {
+          toast.error(err.message || '批次刪除專案失敗');
+        } finally {
+          setIsDeleting(false);
+        }
       }
-    }
+    );
   };
 
   const handleSubmitNewProject = async (e: React.FormEvent) => {
@@ -149,6 +165,7 @@ export const ProjectManagerModal: React.FC<Props> = ({
 
               {selectedIds.length > 0 && (
                 <button
+                  type="button"
                   onClick={handleBatchDelete}
                   disabled={isDeleting}
                   style={{
@@ -277,6 +294,7 @@ export const ProjectManagerModal: React.FC<Props> = ({
                       )}
 
                       <button
+                        type="button"
                         className="btn-icon"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -302,7 +320,7 @@ export const ProjectManagerModal: React.FC<Props> = ({
             </div>
 
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn-primary" onClick={() => setIsAdding(true)}>
+              <button type="button" className="btn-primary" onClick={() => setIsAdding(true)}>
                 <FolderPlus size={18} /> 新建專案
               </button>
             </div>

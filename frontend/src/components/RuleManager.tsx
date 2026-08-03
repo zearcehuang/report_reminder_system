@@ -86,7 +86,7 @@ export const RuleManager: React.FC<Props> = memo(({
     }
 
     const newRule: MilestoneRule = {
-      id: `rule-${Date.now()}`,
+      id: `temp-rule-${Date.now()}`,
       projectId,
       title: '自訂履約里程碑報告',
       dayOffset: 100,
@@ -99,19 +99,22 @@ export const RuleManager: React.FC<Props> = memo(({
 
   const handleRemoveRule = async (index: number) => {
     const targetRule = localRules[index];
+    if (!targetRule) return;
+
     toast.confirm(
       '刪除履約規則',
       `確定要刪除規則「${targetRule.title}」嗎？`,
       async () => {
         try {
-          if (onDeleteRule && targetRule.id) {
+          const isServerRule = rules.some((r) => r.id === targetRule.id);
+          if (onDeleteRule && targetRule.id && isServerRule) {
             await onDeleteRule(projectId, targetRule.id);
-            toast.success(`成功刪除規則：${targetRule.title}`);
           }
           const next = localRules.filter((_, i) => i !== index);
           setLocalRules(next);
-          setSelectedRuleIds(selectedRuleIds.filter(id => id !== targetRule.id));
+          setSelectedRuleIds((prev) => prev.filter((id) => id !== targetRule.id));
           setHasChanges(true);
+          toast.success(`成功刪除規則：${targetRule.title}`);
         } catch (err: any) {
           toast.error(err.message || '刪除規則失敗');
         }
@@ -126,14 +129,15 @@ export const RuleManager: React.FC<Props> = memo(({
       `確定要刪除選取的 ${selectedRuleIds.length} 項履約規則嗎？`,
       async () => {
         try {
-          if (onBatchDeleteRules) {
-            await onBatchDeleteRules(projectId, selectedRuleIds);
-            toast.success(`成功刪除 ${selectedRuleIds.length} 項規則`);
+          const serverRuleIds = selectedRuleIds.filter((id) => rules.some((r) => r.id === id));
+          if (onBatchDeleteRules && serverRuleIds.length > 0) {
+            await onBatchDeleteRules(projectId, serverRuleIds);
           }
-          const next = localRules.filter(r => !selectedRuleIds.includes(r.id));
+          const next = localRules.filter((r) => !selectedRuleIds.includes(r.id));
           setLocalRules(next);
           setSelectedRuleIds([]);
           setHasChanges(true);
+          toast.success(`成功刪除 ${selectedRuleIds.length} 項規則`);
         } catch (err: any) {
           toast.error(err.message || '批次刪除規則失敗');
         }

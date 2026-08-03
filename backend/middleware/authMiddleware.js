@@ -2,6 +2,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { readJsonSync } = require('../services/jsonStore');
+const { logError } = require('../services/errorLogger');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -128,10 +129,12 @@ function requireRole(allowedRoles = []) {
     const userRole = req.user ? req.user.role : 'Admin';
 
     if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+      const errMsg = `當前角色 [${userRole}] 無存取權限，需要 [${allowedRoles.join(', ')}] 權限`;
+      logError('AUTH_ROLE_DENIED', errMsg, { user: req.user, url: req.originalUrl, method: req.method });
       return res.status(403).json({
         success: false,
         error: '權限不足 (Access Denied)',
-        message: `當前角色 [${userRole}] 無存取權限，需要 [${allowedRoles.join(', ')}] 權限`
+        message: errMsg
       });
     }
     next();
@@ -149,10 +152,12 @@ function requirePermission(permissionCode) {
       return next();
     }
 
+    const errMsg = `當前角色 [${userRole}] 缺少所需模組權限點 [${permissionCode}]`;
+    logError('AUTH_PERMISSION_DENIED', errMsg, { user: req.user, permissionCode, url: req.originalUrl, method: req.method });
     return res.status(403).json({
       success: false,
       error: '權限不足 (Permission Denied)',
-      message: `當前角色 [${userRole}] 缺少所需模組權限點 [${permissionCode}]`
+      message: errMsg
     });
   };
 }
