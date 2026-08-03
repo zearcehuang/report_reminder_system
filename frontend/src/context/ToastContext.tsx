@@ -43,13 +43,19 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
       {confirmDialog && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50" style={{ zIndex: 99999 }}>
-          <div className="bg-slate-800 text-white rounded-lg p-6 shadow-xl max-w-sm w-full mx-4 border border-white/10">
-            <h3 className="text-lg font-medium mb-4">{confirmDialog.title}</h3>
-            <p className="text-slate-300 mb-6">{confirmDialog.message}</p>
-            <div className="flex justify-end gap-3">
+        <div className="modal-overlay" style={{ zIndex: 99999 }}>
+          <div className="glass-modal animate-fade-in" style={{ padding: '1.75rem', maxWidth: '440px', width: '100%', border: '1px solid rgba(239, 68, 68, 0.3)', boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }}>
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '0.75rem', color: '#0f172a', fontWeight: 700 }}>
+              {confirmDialog.title}
+            </h3>
+            <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '1.75rem', lineHeight: '1.6' }}>
+              {confirmDialog.message}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               <button
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
+                type="button"
+                className="btn-secondary"
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1.1rem' }}
                 onClick={() => {
                   confirmDialog.onCancel?.();
                   setConfirmDialog(null);
@@ -58,13 +64,16 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
                 取消
               </button>
               <button
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm text-white transition-colors"
+                type="button"
+                className="btn-danger"
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1.1rem' }}
                 onClick={() => {
-                  confirmDialog.onConfirm();
+                  const cb = confirmDialog.onConfirm;
                   setConfirmDialog(null);
+                  cb();
                 }}
               >
-                確定
+                確定刪除
               </button>
             </div>
           </div>

@@ -42,6 +42,7 @@ export const ScheduleTimeline: React.FC<Props> = memo(({
   });
 
   const handleDeleteSingle = async (item: ScheduleItem) => {
+    const itemIdStr = String(item.id);
     toast.confirm(
       '刪除履約項目',
       `確定要刪除「${item.title}」此履約報告繳交項目嗎？此動作無法復原。`,
@@ -49,10 +50,10 @@ export const ScheduleTimeline: React.FC<Props> = memo(({
         setIsDeleting(true);
         try {
           if (onDeleteSchedule) {
-            await onDeleteSchedule(item.id);
+            await onDeleteSchedule(itemIdStr);
             toast.success(`成功刪除 ${item.title}`);
           }
-          setSelectedIds(selectedIds.filter(id => id !== item.id));
+          setSelectedIds((prev) => prev.filter((id) => String(id) !== itemIdStr));
         } catch (err: any) {
           toast.error(err.message || '刪除失敗');
         } finally {
@@ -64,17 +65,18 @@ export const ScheduleTimeline: React.FC<Props> = memo(({
 
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
+    const targetIds = [...selectedIds.map((id) => String(id))];
     toast.confirm(
       '批次刪除',
-      `確定要刪除選取的 ${selectedIds.length} 個履約報告繳交項目嗎？此動作無法復原。`,
+      `確定要刪除選取的 ${targetIds.length} 個履約報告繳交項目嗎？此動作無法復原。`,
       async () => {
         setIsDeleting(true);
         try {
           if (onBatchDeleteSchedules) {
-            await onBatchDeleteSchedules(selectedIds);
-            toast.success(`成功刪除 ${selectedIds.length} 筆項目`);
+            await onBatchDeleteSchedules(targetIds);
+            toast.success(`成功刪除 ${targetIds.length} 筆項目`);
           }
-          setSelectedIds([]);
+          setSelectedIds((prev) => prev.filter((id) => !targetIds.includes(String(id))));
         } catch (err: any) {
           toast.error(err.message || '批次刪除失敗');
         } finally {
@@ -181,13 +183,13 @@ export const ScheduleTimeline: React.FC<Props> = memo(({
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none', fontWeight: 600, color: '#334155' }}>
           <input
             type="checkbox"
-            checked={filtered.length > 0 && filtered.every(s => selectedIds.includes(s.id))}
+            checked={filtered.length > 0 && filtered.every(s => selectedIds.map(String).includes(String(s.id)))}
             onChange={() => {
-              if (filtered.every(s => selectedIds.includes(s.id))) {
-                setSelectedIds(selectedIds.filter(id => !filtered.some(f => f.id === id)));
+              const allFilteredIdStrs = filtered.map(s => String(s.id));
+              if (filtered.every(s => selectedIds.map(String).includes(String(s.id)))) {
+                setSelectedIds(selectedIds.filter(id => !allFilteredIdStrs.includes(String(id))));
               } else {
-                const allFilteredIds = filtered.map(s => s.id);
-                const combined = Array.from(new Set([...selectedIds, ...allFilteredIds]));
+                const combined = Array.from(new Set([...selectedIds.map(String), ...allFilteredIdStrs]));
                 setSelectedIds(combined);
               }
             }}
@@ -238,7 +240,8 @@ export const ScheduleTimeline: React.FC<Props> = memo(({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {filtered.map((item) => {
-              const isSelected = selectedIds.includes(item.id);
+              const itemIdStr = String(item.id);
+              const isSelected = selectedIds.map(String).includes(itemIdStr);
               return (
                 <div
                   key={item.id}
@@ -264,9 +267,9 @@ export const ScheduleTimeline: React.FC<Props> = memo(({
                       checked={isSelected}
                       onChange={() => {
                         if (isSelected) {
-                          setSelectedIds(selectedIds.filter(id => id !== item.id));
+                          setSelectedIds(selectedIds.filter(id => String(id) !== itemIdStr));
                         } else {
-                          setSelectedIds([...selectedIds, item.id]);
+                          setSelectedIds([...selectedIds, itemIdStr]);
                         }
                       }}
                       style={{ width: '18px', height: '18px', cursor: 'pointer' }}

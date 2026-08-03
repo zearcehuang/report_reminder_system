@@ -113,6 +113,7 @@ export interface ExtractedMilestone {
   deliverables?: string[];
   penaltyTerms?: string;
   clauseReference?: string;
+  location?: string;
 }
 
 export interface DocumentExtractResult {

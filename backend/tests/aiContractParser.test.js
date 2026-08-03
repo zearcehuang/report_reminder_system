@@ -83,4 +83,15 @@ describe('AiContractParser', () => {
     expect(result.length).toBeGreaterThan(0);
     expect(result[0].title).toContain('計畫書');
   });
+
+  it('should not add fake milestones if the text does not contain keywords', async () => {
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    const noKeywordText = "這是一份普通的合約文件，沒有任何關鍵字可以觸發。";
+    const result = await AiContractParser.parseWithLlm(noKeywordText, 'test.docx');
+    
+    expect(result).toBeDefined();
+    expect(result.length).toBe(0);
+  });
 });

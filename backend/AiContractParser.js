@@ -104,8 +104,9 @@ For each milestone, extract the following 5 dimensions:
 3. deliverables (Array of Strings)
 4. penaltyTerms (String)
 5. clauseReference (String)
+6. location (String, line number or document section reference e.g., "Line 15" or "Section 3.2")
 
-Return JSON format: { "milestones": [ { "title": "...", "dayOffset": 30, "deliverables": ["..."], "penaltyTerms": "...", "clauseReference": "..." } ] }
+Return JSON format: { "milestones": [ { "title": "...", "dayOffset": 30, "deliverables": ["..."], "penaltyTerms": "...", "clauseReference": "...", "location": "..." } ] }
 
 Contract Name: ${fileName}
 Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
@@ -122,6 +123,7 @@ Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
       deliverables: Array.isArray(m.deliverables) ? m.deliverables : [],
       penaltyTerms: m.penaltyTerms || '逾期每日按本案合約總價千分之一計罰違約金',
       clauseReference: m.clauseReference || '參照標案需求說明書',
+      location: m.location || '段落內文',
       confidence: 95,
       selected: true
     }));
@@ -129,7 +131,7 @@ Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
 
   static parse(text = '', fileName = '') {
     const cleanText = text.trim();
-    const lines = cleanText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const lines = cleanText.split(/\r?\n/).map(l => l.trim());
 
     // Default 5-Dimension contract milestone rules
     const predefinedTemplates = [
@@ -186,10 +188,15 @@ Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
     const extractedItems = [];
 
     predefinedTemplates.forEach((template, idx) => {
-      const matchingLine = lines.find(l => l.includes(template.keyword) || l.includes(template.title));
+      const matchIndex = lines.findIndex(l => l && (l.includes(template.keyword) || l.includes(template.title)));
       
+      if (matchIndex === -1) {
+        return; // Do not add fake milestones if the keyword is not found in the document
+      }
+      
+      const matchingLine = lines[matchIndex];
       let dayOffset = template.defaultOffset;
-      let confidenceScore = 50;
+      let confidenceScore = 80;
 
       if (cleanText) {
         const keywordIdx = cleanText.indexOf(template.keyword);
@@ -200,7 +207,6 @@ Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
           const start = Math.max(0, keywordIdx - contextRadius);
           const end = Math.min(cleanText.length, keywordIdx + contextRadius);
           contextText = cleanText.substring(start, end);
-          confidenceScore = 85;
         }
 
         const offsetReg = /(?:D\+|第|簽約後)\s*(\d+)\s*(?:日|天|個月)/g;
@@ -215,10 +221,6 @@ Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
         }
       }
 
-      if (matchingLine) {
-        confidenceScore = Math.min(98, confidenceScore + 5);
-      }
-
       extractedItems.push({
         id: `ext-item-${Date.now()}-${idx + 1}`,
         originalText: matchingLine || `合約條文: 廠商應於 D+${dayOffset} 日內交付【${template.title}】`,
@@ -227,6 +229,7 @@ Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
         deliverables: template.deliverables,
         penaltyTerms: template.penaltyTerms,
         clauseReference: template.clauseReference,
+        location: `第 ${matchIndex + 1} 行`,
         confidence: confidenceScore,
         selected: true
       });

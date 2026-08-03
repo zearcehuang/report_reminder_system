@@ -109,11 +109,12 @@ class ProjectService {
     const index = projects.findIndex(p => p.id === projectId);
     if (index === -1) return false;
 
+    const targetIdStr = String(ruleId);
     if (projects[index].rules) {
-      projects[index].rules = projects[index].rules.filter(r => r.id !== ruleId);
+      projects[index].rules = projects[index].rules.filter(r => String(r.id) !== targetIdStr);
     }
     if (projects[index].explicitDeadlines) {
-      projects[index].explicitDeadlines = projects[index].explicitDeadlines.filter(e => e.id !== ruleId);
+      projects[index].explicitDeadlines = projects[index].explicitDeadlines.filter(e => String(e.id) !== targetIdStr);
     }
     
     writeJsonSync(PROJECTS_FILE, projects);
@@ -133,15 +134,16 @@ class ProjectService {
     const index = projects.findIndex(p => p.id === projectId);
     if (index === -1) return null;
 
+    const targetIdStrs = ruleIds.map(id => String(id));
     if (projects[index].rules) {
-      projects[index].rules = projects[index].rules.filter(r => !ruleIds.includes(r.id));
+      projects[index].rules = projects[index].rules.filter(r => !targetIdStrs.includes(String(r.id)));
     }
     if (projects[index].explicitDeadlines) {
-      projects[index].explicitDeadlines = projects[index].explicitDeadlines.filter(e => !ruleIds.includes(e.id));
+      projects[index].explicitDeadlines = projects[index].explicitDeadlines.filter(e => !targetIdStrs.includes(String(e.id)));
     }
     
     writeJsonSync(PROJECTS_FILE, projects);
-    return ruleIds.length; // Approx count as per original logic
+    return targetIdStrs.length;
   }
 
   /**

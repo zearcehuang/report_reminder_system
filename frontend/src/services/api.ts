@@ -89,6 +89,8 @@ async function fetchApi<T>(
     } finally {
       if (isGet && cacheKey) {
         inFlightRequests.delete(cacheKey);
+      } else if (!isGet) {
+        requestCache.clear();
       }
     }
   })();
@@ -394,6 +396,10 @@ export const api = {
             dayOffset: dayOffset ?? (idx + 1) * 30,
             owners: Array.isArray(item.owners) && item.owners.length > 0 ? item.owners : ['張小明 (PM)'],
             selected: item.selected !== undefined ? !!item.selected : true,
+            deliverables: item.deliverables,
+            penaltyTerms: item.penaltyTerms,
+            clauseReference: item.clauseReference,
+            location: item.location
           };
         });
 

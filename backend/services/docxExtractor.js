@@ -105,7 +105,7 @@ async function parseDocumentItems(filePath, fileName, dDayStr) {
   const seenKeys = new Set();
   const baseDDay = dDayStr ? new Date(dDayStr) : new Date('2026-09-01');
 
-  rows.forEach((rowStr) => {
+  rows.forEach((rowStr, idx) => {
     const trimRow = rowStr.trim();
     if (!trimRow) return;
 
@@ -170,6 +170,7 @@ async function parseDocumentItems(filePath, fileName, dDayStr) {
           dayOffset: dayOffset,
           originalText: snippet,
           contextSnippet: snippet,
+          location: `第 ${idx + 1} 行`,
           owners: ['張小明 (PM)'],
           selected: true,
           confidence: 0.95

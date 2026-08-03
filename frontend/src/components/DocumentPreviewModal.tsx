@@ -122,8 +122,18 @@ export const DocumentPreviewModal: React.FC<Props> = ({
         </div>
 
         {/* Milestone List */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '0.25rem' }}>
-          {milestones.map((m) => {
+        {milestones.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem 1rem', background: '#f8fafc', borderRadius: 'var(--radius-md)', border: '1px dashed #cbd5e1' }}>
+            <FileText size={48} color="#94a3b8" style={{ margin: '0 auto 1rem auto' }} />
+            <h3 style={{ color: '#475569', marginBottom: '0.5rem' }}>未辨識出任何關鍵日期或里程碑</h3>
+            <p style={{ color: '#64748b', fontSize: '0.85rem' }}>
+              未從此文件中辨別出符合條件的合約里程碑。<br/>
+              系統不會隨意產生虛構項目，請確認文件內容是否有包含明確的日期與里程碑條文。
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+            {milestones.map((m) => {
             const isExpanded = !!expandedCards[m.id];
             const deliverables = m.deliverables || [`${m.title} 文檔檔案`, '成果驗收清冊'];
             const penaltyTerms = m.penaltyTerms || '逾期每日按本案合約總價千分之一計罰違約金';
@@ -205,6 +215,12 @@ export const DocumentPreviewModal: React.FC<Props> = ({
                     <p style={{ fontSize: '0.775rem', color: '#64748b', marginBottom: '0.5rem', fontStyle: 'italic' }}>
                       原始條文: "{m.originalText || (m as any).contextSnippet || m.title || ''}"
                     </p>
+                    
+                    {m.location && (
+                      <p style={{ fontSize: '0.725rem', color: '#4338ca', marginBottom: '0.5rem', fontWeight: 600, background: '#e0e7ff', display: 'inline-block', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                        📍 文件位置: {m.location}
+                      </p>
+                    )}
 
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: isExpanded ? '0.65rem' : '0' }}>
                       {(m.owners || ['張小明 (PM)']).map((owner) => (
@@ -290,6 +306,7 @@ export const DocumentPreviewModal: React.FC<Props> = ({
             );
           })}
         </div>
+        )}
 
         {/* Modal Footer */}
         <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

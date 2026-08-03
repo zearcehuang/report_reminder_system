@@ -111,6 +111,8 @@ export const useAppData = () => {
     if (!activeProject) return;
     const ok = await api.deleteRule(activeProject.id, scheduleId);
     if (!ok) throw new Error('刪除履約項目失敗');
+    setSchedules((prev) => prev.filter((s) => String(s.id) !== String(scheduleId)));
+    setRules((prev) => prev.filter((r) => String(r.id) !== String(scheduleId)));
     await loadProjectDetails(activeProject.id);
   };
 
@@ -118,18 +120,26 @@ export const useAppData = () => {
     if (!activeProject) return;
     const ok = await api.batchDeleteRules(activeProject.id, scheduleIds);
     if (!ok) throw new Error('批次刪除履約項目失敗');
+    const strIds = scheduleIds.map((id) => String(id));
+    setSchedules((prev) => prev.filter((s) => !strIds.includes(String(s.id))));
+    setRules((prev) => prev.filter((r) => !strIds.includes(String(r.id))));
     await loadProjectDetails(activeProject.id);
   };
 
   const handleDeleteRule = async (projectId: string, ruleId: string) => {
     const ok = await api.deleteRule(projectId, ruleId);
     if (!ok) throw new Error('刪除里程碑規則失敗');
+    setRules((prev) => prev.filter((r) => String(r.id) !== String(ruleId)));
+    setSchedules((prev) => prev.filter((s) => String(s.id) !== String(ruleId)));
     await loadProjectDetails(projectId);
   };
 
   const handleBatchDeleteRules = async (projectId: string, ruleIds: string[]) => {
     const ok = await api.batchDeleteRules(projectId, ruleIds);
     if (!ok) throw new Error('批次刪除里程碑規則失敗');
+    const strIds = ruleIds.map((id) => String(id));
+    setRules((prev) => prev.filter((r) => !strIds.includes(String(r.id))));
+    setSchedules((prev) => prev.filter((s) => !strIds.includes(String(s.id))));
     await loadProjectDetails(projectId);
   };
 
