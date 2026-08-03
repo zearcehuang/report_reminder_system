@@ -75,7 +75,8 @@ export const RuleManager: React.FC<Props> = memo(({
     let defaultOwners = ['alex.chang@company.com'];
 
     if (activeProject && activeProject.projectOwners && activeProject.projectOwners.length > 0) {
-      defaultOwners = activeProject.projectOwners.map((po) => `[${po.role}] ${po.name} (${po.email})`);
+      const pm = activeProject.projectOwners.find((po) => po.role.includes('PM') || po.role.includes('專案經理') || po.role.includes('負責人')) || activeProject.projectOwners[0];
+      defaultOwners = [`[${pm.role}] ${pm.name} (${pm.email})`];
     } else if (activeProject && (activeProject.ownerEmail || activeProject.ownerName)) {
       const ownerStr = activeProject.ownerName
         ? `${activeProject.ownerName} (${activeProject.ownerEmail || ''})`

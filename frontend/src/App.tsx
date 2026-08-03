@@ -25,12 +25,25 @@ export const App: React.FC = () => {
 
   const handleConfirmImportDocumentMilestones = useCallback(async (selected: ExtractedMilestone[]) => {
     if (!appData.activeProject) return;
+    const project = appData.activeProject;
+    
+    // Default owner: ONLY Project Manager / PM (專案負責人), not all outlook contacts
+    let pmOwnerStr = '張小明 (PM)';
+    if (project.projectOwners && project.projectOwners.length > 0) {
+      const pm = project.projectOwners.find((po) => po.role.includes('PM') || po.role.includes('專案經理') || po.role.includes('負責人')) || project.projectOwners[0];
+      pmOwnerStr = `[${pm.role}] ${pm.name} (${pm.email})`;
+    } else if (project.ownerName || project.ownerEmail) {
+      pmOwnerStr = project.ownerName
+        ? `${project.ownerName} (${project.ownerEmail || ''})`
+        : project.ownerEmail!;
+    }
+
     const newRules: MilestoneRule[] = selected.map((m, idx) => ({
-      id: `rule-${appData.activeProject!.id}-ext-${Date.now()}-${idx}`,
-      projectId: appData.activeProject!.id,
+      id: `rule-${project.id}-ext-${Date.now()}-${idx}`,
+      projectId: project.id,
       title: m.title,
       dayOffset: m.dayOffset,
-      owners: m.owners && m.owners.length > 0 ? m.owners : ['張小明 (PM)'],
+      owners: [pmOwnerStr],
       enabled: true,
     }));
     await appData.handleSaveRules(newRules);

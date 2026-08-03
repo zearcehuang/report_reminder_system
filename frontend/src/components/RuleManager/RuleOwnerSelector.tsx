@@ -1,55 +1,100 @@
-import React, { useState } from 'react';
-import { User, X, Users } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { User, X, Users, ChevronDown, ChevronUp, Check, Search } from 'lucide-react';
 import { Contact } from '../../types';
 
 interface RuleOwnerSelectorProps {
   ruleOwners: string[];
-  ruleEnabled: boolean;
+  ruleEnabled?: boolean;
   selectableTeam: { id?: string; role: string; name: string; email: string }[];
   contacts: Contact[];
   onUpdateOwners: (owners: string[]) => void;
+  placeholder?: string;
 }
 
 export const RuleOwnerSelector: React.FC<RuleOwnerSelectorProps> = ({
   ruleOwners,
-  ruleEnabled,
+  ruleEnabled = true,
   selectableTeam,
   contacts,
   onUpdateOwners,
+  placeholder = '+ 搜尋團隊角色/姓名/Email 或下拉多選...',
 }) => {
-  const [isActive, setIsActive] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleAddOwnerTag = (ownerEmail: string) => {
-    if (!ownerEmail || ruleOwners.includes(ownerEmail)) return;
-    onUpdateOwners([...ruleOwners, ownerEmail]);
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleToggleOwner = (ownerStr: string, email: string) => {
+    const isSelected = ruleOwners.includes(ownerStr) || ruleOwners.some((o) => o.includes(email));
+    if (isSelected) {
+      onUpdateOwners(ruleOwners.filter((o) => !o.includes(email) && o !== ownerStr));
+    } else {
+      onUpdateOwners([...ruleOwners, ownerStr]);
+    }
+  };
+
+  const handleAddCustomEmail = (emailStr: string) => {
+    const trimmed = emailStr.trim();
+    if (!trimmed || ruleOwners.includes(trimmed)) return;
+    onUpdateOwners([...ruleOwners, trimmed]);
     setSearchQuery('');
-    setIsActive(false);
   };
 
-  const handleRemoveOwnerTag = (ownerEmail: string) => {
-    onUpdateOwners(ruleOwners.filter((o) => o !== ownerEmail));
+  const handleRemoveOwner = (ownerStr: string) => {
+    onUpdateOwners(ruleOwners.filter((o) => o !== ownerStr));
   };
 
+  const query = searchQuery.toLowerCase().trim();
+
+  // Filter team members based on search query
+  const filteredTeam = selectableTeam.filter(
+    (po) =>
+      !query ||
+      po.name.toLowerCase().includes(query) ||
+      po.email.toLowerCase().includes(query) ||
+      po.role.toLowerCase().includes(query)
+  );
+
+  // Filter contacts based on search query
   const filteredContacts = contacts.filter(
     (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchQuery.toLowerCase())
+      !query ||
+      c.name.toLowerCase().includes(query) ||
+      c.email.toLowerCase().includes(query) ||
+      (c.department && c.department.toLowerCase().includes(query))
   );
 
   return (
-    <div style={{ position: 'relative' }}>
-      <div style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '0.35rem',
-        alignItems: 'center',
-        background: '#ffffff',
-        border: '1px solid rgba(203, 213, 225, 0.9)',
-        borderRadius: 'var(--radius-sm)',
-        padding: '0.4rem 0.6rem',
-        minHeight: '40px',
-      }}>
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      {/* Trigger & Input Container */}
+      <div
+        onClick={() => ruleEnabled && setIsOpen((prev) => !prev)}
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.4rem',
+          alignItems: 'center',
+          background: '#ffffff',
+          border: isOpen ? '1.5px solid #4f46e5' : '1px solid #cbd5e1',
+          borderRadius: 'var(--radius-sm)',
+          padding: '0.45rem 0.65rem',
+          minHeight: '42px',
+          cursor: ruleEnabled ? 'pointer' : 'not-allowed',
+          boxShadow: isOpen ? '0 0 0 3px rgba(79, 70, 229, 0.1)' : 'none',
+          transition: 'all 0.15s ease',
+        }}
+      >
+        {/* Selected Tags */}
         {ruleOwners.map((owner) => (
           <span
             key={owner}
@@ -59,19 +104,22 @@ export const RuleOwnerSelector: React.FC<RuleOwnerSelectorProps> = ({
               color: '#3730a3',
               fontWeight: 600,
               fontSize: '0.75rem',
-              padding: '0.15rem 0.45rem',
+              padding: '0.2rem 0.5rem',
               borderRadius: '4px',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.3rem',
             }}
           >
-            <User size={11} /> {owner}
+            <User size={12} /> {owner}
             {ruleEnabled && (
               <button
                 type="button"
-                onClick={() => handleRemoveOwnerTag(owner)}
-                style={{ background: 'transparent', border: 'none', color: '#a5b4fc', cursor: 'pointer', display: 'flex' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveOwner(owner);
+                }}
+                style={{ background: 'transparent', border: 'none', color: '#6366f1', cursor: 'pointer', display: 'flex', padding: 0 }}
               >
                 <X size={12} />
               </button>
@@ -79,43 +127,74 @@ export const RuleOwnerSelector: React.FC<RuleOwnerSelectorProps> = ({
           </span>
         ))}
 
+        {/* Live Search Input Field */}
         {ruleEnabled && (
-          <input
-            type="text"
-            placeholder={ruleOwners.length === 0 ? '手動 Email 或搜尋通訊錄...' : '+ 新增...'}
-            value={searchQuery}
-            onFocus={() => setIsActive(true)}
-            onBlur={() => setTimeout(() => setIsActive(false), 200)}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && searchQuery.trim()) {
-                e.preventDefault();
-                handleAddOwnerTag(searchQuery.trim());
-              }
-            }}
-            style={{
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontSize: '0.8rem',
-              flex: 1,
-              minWidth: '100px',
-            }}
-          />
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', minWidth: '160px', gap: '0.3rem' }}>
+            <Search size={13} color="#94a3b8" />
+            <input
+              type="text"
+              placeholder={ruleOwners.length === 0 ? placeholder : '+ 新增/搜尋通知人...'}
+              value={searchQuery}
+              onFocus={() => setIsOpen(true)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (!isOpen) setIsOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery.trim()) {
+                  e.preventDefault();
+                  handleAddCustomEmail(searchQuery.trim());
+                }
+              }}
+              style={{
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                fontSize: '0.825rem',
+                width: '100%',
+                color: '#334155',
+              }}
+            />
+          </div>
+        )}
+
+        {/* Dropdown Toggle Icon */}
+        {ruleEnabled && (
+          <div style={{ color: '#64748b', display: 'flex', alignItems: 'center', paddingLeft: '0.2rem' }}>
+            {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
         )}
       </div>
 
-      {ruleEnabled && (
+      {/* Multi-Select Searchable Dropdown Menu */}
+      {isOpen && ruleEnabled && (
         <div style={{
-          marginTop: '0.4rem',
-          background: '#f8fafc',
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          right: 0,
+          zIndex: 50,
+          background: '#ffffff',
           border: '1px solid #cbd5e1',
           borderRadius: 'var(--radius-sm)',
-          padding: '0.45rem 0.6rem',
+          boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.15)',
+          maxHeight: '260px',
+          overflowY: 'auto',
+          padding: '0.5rem 0',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-            <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              <Users size={12} color="#4f46e5" /> 一鍵勾選專案團隊角色 (可多選):
+          {/* Header & Quick Selection Toolbar */}
+          <div style={{
+            padding: '0.35rem 0.75rem 0.5rem 0.75rem',
+            borderBottom: '1px solid #f1f5f9',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: '#f8fafc',
+            marginTop: '-0.5rem',
+            marginBottom: '0.35rem',
+          }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <Users size={13} color="#4f46e5" /> 專案團隊與通訊錄成員 (可勾選多位):
             </span>
             <div style={{ display: 'flex', gap: '0.35rem' }}>
               <button
@@ -130,7 +209,7 @@ export const RuleOwnerSelector: React.FC<RuleOwnerSelectorProps> = ({
                   color: '#1d4ed8',
                   fontSize: '0.675rem',
                   fontWeight: 700,
-                  padding: '0.1rem 0.35rem',
+                  padding: '0.15rem 0.45rem',
                   borderRadius: '3px',
                   cursor: 'pointer',
                 }}
@@ -146,112 +225,145 @@ export const RuleOwnerSelector: React.FC<RuleOwnerSelectorProps> = ({
                   color: '#64748b',
                   fontSize: '0.675rem',
                   fontWeight: 600,
-                  padding: '0.1rem 0.35rem',
+                  padding: '0.15rem 0.45rem',
                   borderRadius: '3px',
                   cursor: 'pointer',
                 }}
               >
-                清空
+                重置清空
               </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
-            {selectableTeam.map((po) => {
-              const ownerStr = `[${po.role}] ${po.name} (${po.email})`;
-              const isSelected = ruleOwners.includes(ownerStr) || ruleOwners.some((o) => o.includes(po.email));
-
-              return (
-                <button
-                  key={po.id || po.email}
-                  type="button"
-                  onClick={() => {
-                    let nextOwners: string[];
-                    if (isSelected) {
-                      nextOwners = ruleOwners.filter((o) => !o.includes(po.email) && o !== ownerStr);
-                    } else {
-                      nextOwners = [...ruleOwners, ownerStr];
-                    }
-                    onUpdateOwners(nextOwners);
-                  }}
-                  style={{
-                    padding: '0.15rem 0.45rem',
-                    borderRadius: '5px',
-                    fontSize: '0.725rem',
-                    fontWeight: 600,
-                    border: isSelected ? '1.5px solid #4f46e5' : '1px solid #cbd5e1',
-                    background: isSelected ? '#e0e7ff' : '#ffffff',
-                    color: isSelected ? '#3730a3' : '#475569',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.2rem',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span style={{
-                    fontSize: '0.65rem',
-                    padding: '0.05rem 0.25rem',
-                    borderRadius: '3px',
-                    background: isSelected ? '#c7d2fe' : '#f1f5f9',
-                    color: isSelected ? '#312e81' : '#475569',
-                    fontWeight: 700,
-                  }}>
-                    {po.role}
-                  </span>
-                  {po.name}
-                  {isSelected ? (
-                    <span style={{ color: '#4338ca', fontWeight: 800 }}>✓</span>
-                  ) : (
-                    <span style={{ color: '#94a3b8' }}>+</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {isActive && searchQuery.trim().length > 0 && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          zIndex: 20,
-          background: '#ffffff',
-          border: '1px solid #cbd5e1',
-          borderRadius: 'var(--radius-sm)',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-          maxHeight: '180px',
-          overflowY: 'auto',
-          marginTop: '0.2rem',
-        }}>
-          {filteredContacts.length > 0 ? (
-            filteredContacts.map((c) => (
-              <div
-                key={c.id}
-                onClick={() => handleAddOwnerTag(`${c.name} (${c.email})`)}
-                style={{
-                  padding: '0.5rem 0.75rem',
-                  cursor: 'pointer',
-                  fontSize: '0.8rem',
-                  borderBottom: '1px solid #f1f5f9',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-                className="contact-dropdown-item"
-              >
-                <div>
-                  <strong>{c.name}</strong> <span style={{ color: '#64748b' }}>({c.department})</span>
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{c.email}</span>
+          {/* Section 1: Project Team Members */}
+          {filteredTeam.length > 0 && (
+            <div>
+              <div style={{ padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                專案負責人團隊名冊 ({filteredTeam.length})
               </div>
-            ))
-          ) : (
-            <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', color: '#94a3b8' }}>
-              按下 Enter 直接新增 「{searchQuery}」
+              {filteredTeam.map((po) => {
+                const ownerStr = `[${po.role}] ${po.name} (${po.email})`;
+                const isSelected = ruleOwners.includes(ownerStr) || ruleOwners.some((o) => o.includes(po.email));
+
+                return (
+                  <div
+                    key={po.id || po.email}
+                    onClick={() => handleToggleOwner(ownerStr, po.email)}
+                    style={{
+                      padding: '0.45rem 0.75rem',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: isSelected ? '#eff6ff' : 'transparent',
+                      transition: 'background 0.1s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}} // Handled by div onClick
+                        style={{ accentColor: '#4f46e5', cursor: 'pointer' }}
+                      />
+                      <span style={{
+                        fontSize: '0.675rem',
+                        padding: '0.05rem 0.35rem',
+                        borderRadius: '3px',
+                        background: isSelected ? '#c7d2fe' : '#e2e8f0',
+                        color: isSelected ? '#312e81' : '#475569',
+                        fontWeight: 700,
+                      }}>
+                        {po.role}
+                      </span>
+                      <strong style={{ color: '#1e293b' }}>{po.name}</strong>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>({po.email})</span>
+                    </div>
+                    {isSelected && <Check size={15} color="#4f46e5" />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Section 2: Outlook Contacts */}
+          {filteredContacts.length > 0 && (
+            <div style={{ marginTop: filteredTeam.length > 0 ? '0.4rem' : 0 }}>
+              <div style={{ padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                Outlook 通訊錄對象 ({filteredContacts.length})
+              </div>
+              {filteredContacts.map((c) => {
+                const ownerStr = `${c.name} (${c.email})`;
+                const isSelected = ruleOwners.includes(ownerStr) || ruleOwners.some((o) => o.includes(c.email));
+
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => handleToggleOwner(ownerStr, c.email)}
+                    style={{
+                      padding: '0.45rem 0.75rem',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: isSelected ? '#eff6ff' : 'transparent',
+                      transition: 'background 0.1s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        style={{ accentColor: '#4f46e5', cursor: 'pointer' }}
+                      />
+                      <strong style={{ color: '#1e293b' }}>{c.name}</strong>
+                      {c.department && <span style={{ fontSize: '0.725rem', color: '#64748b' }}>({c.department})</span>}
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{c.email}</span>
+                    </div>
+                    {isSelected && <Check size={15} color="#4f46e5" />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Section 3: Add Custom Email */}
+          {searchQuery.trim().length > 0 && (
+            <div
+              onClick={() => handleAddCustomEmail(searchQuery.trim())}
+              style={{
+                padding: '0.6rem 0.75rem',
+                fontSize: '0.8rem',
+                color: '#4f46e5',
+                cursor: 'pointer',
+                fontWeight: 700,
+                borderTop: '1px dashed #cbd5e1',
+                marginTop: '0.35rem',
+                background: '#faf5ff',
+              }}
+            >
+              + 按下 Enter 或點擊以此 Email 新增：「{searchQuery.trim()}」
+            </div>
+          )}
+
+          {filteredTeam.length === 0 && filteredContacts.length === 0 && searchQuery.trim().length === 0 && (
+            <div style={{ padding: '0.75rem', fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center' }}>
+              無相符的團隊或通訊錄聯絡人
             </div>
           )}
         </div>

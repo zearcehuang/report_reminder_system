@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MilestoneRule, Contact, Project } from '../types';
 import { FilePlus, X, Calendar, Clock, User, Plus, Sparkles, AlertCircle, FileText, Check, Users, CheckSquare } from 'lucide-react';
+import { RuleOwnerSelector } from './RuleManager/RuleOwnerSelector';
 
 interface Props {
   isOpen: boolean;
@@ -48,10 +49,11 @@ export const AddReportModal: React.FC<Props> = ({
       setNotes('');
       setErrorMsg('');
 
-      // Default owners from active project's projectOwners (multi-role) or legacy single owner
+      // Default owners: ONLY Project Manager / PM (專案負責人), not all outlook contacts/team members
       if (activeProject && activeProject.projectOwners && activeProject.projectOwners.length > 0) {
-        const teamOwners = activeProject.projectOwners.map((po) => `[${po.role}] ${po.name} (${po.email})`);
-        setOwners(teamOwners);
+        const pm = activeProject.projectOwners.find((po) => po.role.includes('PM') || po.role.includes('專案經理') || po.role.includes('負責人')) || activeProject.projectOwners[0];
+        const pmStr = `[${pm.role}] ${pm.name} (${pm.email})`;
+        setOwners([pmStr]);
       } else if (activeProject && (activeProject.ownerEmail || activeProject.ownerName)) {
         const ownerStr = activeProject.ownerName
           ? `${activeProject.ownerName} (${activeProject.ownerEmail || ''})`
@@ -147,13 +149,59 @@ export const AddReportModal: React.FC<Props> = ({
     }
   };
 
-  // Autocomplete suggestions for owner search
-  const filteredContacts = contacts.filter(
-    (c) =>
-      c.name.toLowerCase().includes(ownerInput.toLowerCase()) ||
-      c.email.toLowerCase().includes(ownerInput.toLowerCase()) ||
-      (c.department && c.department.toLowerCase().includes(ownerInput.toLowerCase()))
-  );
+  // Autocomplete suggestions for owner search across contacts & team members
+  const getFilteredSuggestions = () => {
+    if (!ownerInput.trim()) return [];
+    const query = ownerInput.toLowerCase();
+    const suggestions: { id: string; name: string; email: string; department: string; formatted: string }[] = [];
+    const seenEmails = new Set<string>();
+
+    if (activeProject && activeProject.projectOwners) {
+      activeProject.projectOwners.forEach((po) => {
+        if (!seenEmails.has(po.email.toLowerCase())) {
+          seenEmails.add(po.email.toLowerCase());
+          if (
+            po.name.toLowerCase().includes(query) ||
+            po.email.toLowerCase().includes(query) ||
+            po.role.toLowerCase().includes(query)
+          ) {
+            suggestions.push({
+              id: po.id || po.email,
+              name: po.name,
+              email: po.email,
+              department: `團隊 ${po.role}`,
+              formatted: `[${po.role}] ${po.name} (${po.email})`,
+            });
+          }
+        }
+      });
+    }
+
+    if (contacts) {
+      contacts.forEach((c) => {
+        if (!seenEmails.has(c.email.toLowerCase())) {
+          seenEmails.add(c.email.toLowerCase());
+          if (
+            c.name.toLowerCase().includes(query) ||
+            c.email.toLowerCase().includes(query) ||
+            (c.department && c.department.toLowerCase().includes(query))
+          ) {
+            suggestions.push({
+              id: c.id,
+              name: c.name,
+              email: c.email,
+              department: c.department || '通訊錄',
+              formatted: `${c.name} (${c.email})`,
+            });
+          }
+        }
+      });
+    }
+
+    return suggestions;
+  };
+
+  const filteredSuggestions = getFilteredSuggestions();
 
   // Compute available team owners list for quick selection
   const getSelectableOwners = () => {
@@ -425,224 +473,18 @@ export const AddReportModal: React.FC<Props> = ({
             )}
           </div>
 
-          {/* 3. Responsible Owners Input */}
+          {/* 3. Responsible Owners Input (Searchable Multi-Select Dropdown) */}
           <div style={{ marginBottom: '1.25rem' }}>
             <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>
-              權責負責人 / 通知對象
+              權責負責人 / 通知對象 (下拉可多選 & 搜尋比對)
             </label>
-
-            {/* Quick Team Member Multi-Select Box */}
-            <div style={{
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              borderRadius: 'var(--radius-sm)',
-              padding: '0.75rem 0.85rem',
-              marginBottom: '0.75rem',
-              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <Users size={15} color="#4f46e5" /> 專案負責人團隊名冊 (可單擊勾選多位成員):
-                </span>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const allTeam = selectableTeam.map((po) => `[${po.role}] ${po.name} (${po.email})`);
-                      setOwners(Array.from(new Set([...owners, ...allTeam])));
-                    }}
-                    style={{
-                      background: '#eff6ff',
-                      border: '1px solid #bfdbfe',
-                      color: '#1d4ed8',
-                      fontSize: '0.725rem',
-                      fontWeight: 700,
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    + 全選團隊
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOwners([])}
-                    style={{
-                      background: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      color: '#64748b',
-                      fontSize: '0.725rem',
-                      fontWeight: 600,
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    重置清空
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                {selectableTeam.map((po) => {
-                  const ownerStr = `[${po.role}] ${po.name} (${po.email})`;
-                  const isSelected = owners.includes(ownerStr) || owners.some((o) => o.includes(po.email));
-
-                  return (
-                    <button
-                      key={po.id || po.email}
-                      type="button"
-                      onClick={() => {
-                        if (isSelected) {
-                          setOwners(owners.filter((o) => !o.includes(po.email) && o !== ownerStr));
-                        } else {
-                          setOwners([...owners, ownerStr]);
-                        }
-                      }}
-                      style={{
-                        padding: '0.3rem 0.65rem',
-                        borderRadius: '6px',
-                        fontSize: '0.775rem',
-                        fontWeight: 600,
-                        border: isSelected ? '2px solid #4f46e5' : '1px solid #cbd5e1',
-                        background: isSelected ? '#e0e7ff' : '#ffffff',
-                        color: isSelected ? '#3730a3' : '#475569',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        boxShadow: isSelected ? '0 1px 3px rgba(79, 70, 229, 0.2)' : 'none',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <span style={{
-                        fontSize: '0.675rem',
-                        padding: '0.05rem 0.35rem',
-                        borderRadius: '3px',
-                        background: isSelected ? '#c7d2fe' : '#f1f5f9',
-                        color: isSelected ? '#312e81' : '#475569',
-                        fontWeight: 700,
-                      }}>
-                        {po.role}
-                      </span>
-                      {po.name}
-                      {isSelected ? (
-                        <span style={{ color: '#4338ca', fontWeight: 800, fontSize: '0.85rem' }}>✓</span>
-                      ) : (
-                        <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>+</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div style={{ position: 'relative' }}>
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '0.4rem',
-                alignItems: 'center',
-                background: '#ffffff',
-                border: '1px solid rgba(203, 213, 225, 0.9)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0.45rem 0.65rem',
-                minHeight: '44px',
-              }}>
-                {owners.map((owner) => (
-                  <span
-                    key={owner}
-                    style={{
-                      background: '#e0e7ff',
-                      border: '1px solid #c7d2fe',
-                      color: '#3730a3',
-                      fontWeight: 600,
-                      fontSize: '0.775rem',
-                      padding: '0.2rem 0.5rem',
-                      borderRadius: '4px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                    }}
-                  >
-                    <User size={12} /> {owner}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveOwner(owner)}
-                      style={{ background: 'transparent', border: 'none', color: '#818cf8', cursor: 'pointer', display: 'flex' }}
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-
-                <input
-                  type="text"
-                  placeholder={owners.length === 0 ? '手動輸入 Email 或搜尋 Outlook 通訊錄...' : '+ 手動新增 Email...'}
-                  value={ownerInput}
-                  onChange={(e) => setOwnerInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && ownerInput.trim()) {
-                      e.preventDefault();
-                      handleAddOwner(ownerInput.trim());
-                    }
-                  }}
-                  style={{
-                    border: 'none',
-                    outline: 'none',
-                    background: 'transparent',
-                    fontSize: '0.85rem',
-                    flex: 1,
-                    minWidth: '160px',
-                  }}
-                />
-              </div>
-
-              {/* Contact Autocomplete Dropdown */}
-              {ownerInput.trim().length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  zIndex: 20,
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 'var(--radius-sm)',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                  maxHeight: '160px',
-                  overflowY: 'auto',
-                  marginTop: '0.2rem',
-                }}>
-                  {filteredContacts.length > 0 ? (
-                    filteredContacts.map((c) => (
-                      <div
-                        key={c.id}
-                        onClick={() => handleAddOwner(`${c.name} (${c.email})`)}
-                        style={{
-                          padding: '0.5rem 0.75rem',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem',
-                          borderBottom: '1px solid #f1f5f9',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <div>
-                          <strong>{c.name}</strong> <span style={{ color: '#64748b' }}>({c.department})</span>
-                        </div>
-                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{c.email}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', color: '#94a3b8' }}>
-                      按下 Enter 直接新增 「{ownerInput}」
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <RuleOwnerSelector
+              ruleOwners={owners}
+              selectableTeam={selectableTeam}
+              contacts={contacts}
+              onUpdateOwners={(newOwners) => setOwners(newOwners)}
+              placeholder="+ 搜尋團隊角色/姓名/Email 或下拉多選..."
+            />
           </div>
 
           {/* 4. Notes & Description */}
