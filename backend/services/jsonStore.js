@@ -12,6 +12,7 @@ const fileLocks = new Map(); // Promise chain mutex for concurrent writes
 
 function deepClone(obj) {
   if (obj === undefined) return undefined;
+  if (obj === null || typeof obj !== 'object') return obj; // 快速跳過基本型別 (Primitives)
   return typeof structuredClone === 'function' ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
 }
 
@@ -69,8 +70,6 @@ async function readJson(filePath, defaultValue) {
 
 async function writeJson(filePath, data) {
   const clonedData = deepClone(data);
-  jsonCache.set(filePath, clonedData);
-  jsonStoreEvents.emit('change', filePath, clonedData);
   
   const currentLock = fileLocks.get(filePath) || Promise.resolve();
   
@@ -84,11 +83,17 @@ async function writeJson(filePath, data) {
     try {
       await fsPromises.writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
       await fsPromises.rename(tmpPath, filePath); // Atomic replacement
+      
+      // 更新快取確保與磁碟狀態嚴密同步 (嚴格一致性)
+      jsonCache.set(filePath, clonedData);
+      jsonStoreEvents.emit('change', filePath, clonedData);
     } catch (err) {
       logError('JSON_WRITE_ERROR', err, { filePath });
       if (fs.existsSync(tmpPath)) {
         await fsPromises.unlink(tmpPath).catch(() => {});
       }
+      // 寫入失敗時使快取失效，避免髒讀 (Dirty Read)
+      invalidateCache(filePath);
       throw err;
     }
   });
@@ -105,8 +110,6 @@ async function writeJson(filePath, data) {
 
 function writeJsonSync(filePath, data) {
   const clonedData = deepClone(data);
-  jsonCache.set(filePath, clonedData);
-  jsonStoreEvents.emit('change', filePath, clonedData);
   
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
@@ -117,11 +120,17 @@ function writeJsonSync(filePath, data) {
   try {
     fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf8');
     fs.renameSync(tmpPath, filePath); // Atomic replacement
+    
+    // 更新快取確保與磁碟狀態同步
+    jsonCache.set(filePath, clonedData);
+    jsonStoreEvents.emit('change', filePath, clonedData);
   } catch (err) {
     logError('JSON_WRITE_ERROR_SYNC', err, { filePath });
     if (fs.existsSync(tmpPath)) {
       try { fs.unlinkSync(tmpPath); } catch (e) {}
     }
+    // 寫入失敗時使快取失效
+    invalidateCache(filePath);
     throw err;
   }
 }

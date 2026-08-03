@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useCallback } from 'react';
 import { Project, ProjectOwner, Contact } from '../types';
 import { Calendar, Clock, Sparkles, Save, Info, User, Mail, Plus, Trash2, Users, Tag, ShieldCheck, Edit2, Check, X } from 'lucide-react';
 
@@ -72,25 +72,24 @@ export const DDayControl: React.FC<Props> = memo(({ project, onUpdateProject, mi
 
   const presetOptions = [1, 3, 5, 7, 14, 30];
 
-  const handleToggleDay = (day: number) => {
-    let updated: number[];
-    if (noticeDaysList.includes(day)) {
-      if (noticeDaysList.length === 1) return; // Keep at least one
-      updated = noticeDaysList.filter((d) => d !== day);
-    } else {
-      updated = [...noticeDaysList, day].sort((a, b) => b - a);
-    }
-    setNoticeDaysList(updated);
-  };
+  const handleToggleDay = useCallback((day: number) => {
+    setNoticeDaysList((prev) => {
+      if (prev.includes(day)) {
+        if (prev.length === 1) return prev; // Keep at least one
+        return prev.filter((d) => d !== day);
+      } else {
+        return [...prev, day].sort((a, b) => b - a);
+      }
+    });
+  }, []);
 
-  const handleAddCustomDay = () => {
+  const handleAddCustomDay = useCallback(() => {
     const val = parseInt(customDayInput, 10);
     if (!isNaN(val) && val > 0 && !noticeDaysList.includes(val)) {
-      const updated = [...noticeDaysList, val].sort((a, b) => b - a);
-      setNoticeDaysList(updated);
+      setNoticeDaysList((prev) => [...prev, val].sort((a, b) => b - a));
       setCustomDayInput('');
     }
-  };
+  }, [customDayInput, noticeDaysList]);
 
   const handleAddOwner = async () => {
     if (!ownerEmail.trim()) return;
@@ -167,7 +166,7 @@ export const DDayControl: React.FC<Props> = memo(({ project, onUpdateProject, mi
     setEditingOwnerId(null);
   };
 
-  const handleRemoveOwner = async (id?: string, email?: string) => {
+  const handleRemoveOwner = useCallback(async (id?: string, email?: string) => {
     const updated = projectOwners.filter((o) => (id ? o.id !== id : o.email !== email));
     setProjectOwners(updated);
 
@@ -178,9 +177,9 @@ export const DDayControl: React.FC<Props> = memo(({ project, onUpdateProject, mi
       ownerName: primaryPM ? `${primaryPM.name} (${primaryPM.role})` : undefined,
       ownerEmail: primaryPM ? primaryPM.email : undefined,
     });
-  };
+  }, [projectOwners, onUpdateProject]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
       const maxDay = noticeDaysList.length > 0 ? Math.max(...noticeDaysList) : 3;
@@ -199,7 +198,7 @@ export const DDayControl: React.FC<Props> = memo(({ project, onUpdateProject, mi
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [dDay, projectOwners, noticeDaysList, onUpdateProject]);
 
   const getDayOfWeek = (dateStr: string) => {
     if (!dateStr) return '';

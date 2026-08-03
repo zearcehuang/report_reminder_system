@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Project } from '../types';
 import { Calendar, Layers, CheckCircle2, Sparkles } from 'lucide-react';
 
@@ -17,6 +17,11 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = memo(({
   pendingCount,
   shiftedCount,
 }) => {
+  const completionRate = useMemo(() => {
+    const total = submittedCount + pendingCount;
+    return total > 0 ? Math.round((submittedCount / total) * 100) : 0;
+  }, [submittedCount, pendingCount]);
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
       <div className="glass-card stat-card">
@@ -43,7 +48,7 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = memo(({
         <div className="stat-card-label">繳交進度狀態</div>
         <div className="stat-card-value" style={{ color: '#34d399' }}>
           <CheckCircle2 size={22} color="#10b981" />
-          {submittedCount} / {submittedCount + pendingCount} 已完成
+          {submittedCount} / {submittedCount + pendingCount} ({completionRate}%)
         </div>
         <div className="stat-card-sublabel">
           剩餘 <strong style={{ color: '#fbbf24' }}>{pendingCount} 項</strong> 待履約報告

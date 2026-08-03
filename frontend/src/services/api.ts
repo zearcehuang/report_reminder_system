@@ -17,49 +17,88 @@ import {
 import { errorLogger } from './logger';
 import { toastManager } from '../context/ToastContext';
 
+const requestCache = new Map<string, { data: any; expiry: number }>();
+const inFlightRequests = new Map<string, Promise<{ ok: boolean; data: any }>>();
+const CACHE_TTL_MS = 5000;
+
 async function fetchApi<T>(
   url: string,
   options: RequestInit = {},
   fallback?: T
 ): Promise<{ ok: boolean; data: T }> {
-  try {
-    const headers: Record<string, string> = {
-      ...(options.headers as Record<string, string> || {}),
-    };
+  const method = (options.method || 'GET').toUpperCase();
+  const isGet = method === 'GET';
+  const cacheKey = isGet ? url : null;
 
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+  if (isGet && cacheKey) {
+    // 1. TTL Cache Check
+    const cached = requestCache.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) {
+      return { ok: true, data: cached.data as T };
     }
 
-    if (options.body && !(options.body instanceof FormData)) {
-      headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+    // 2. In-flight Request Deduplication
+    if (inFlightRequests.has(cacheKey)) {
+      return inFlightRequests.get(cacheKey) as Promise<{ ok: boolean; data: T }>;
     }
-
-    const res = await fetch(url, { ...options, headers });
-    if (res.ok) {
-      const data = await res.json();
-      return { ok: true, data };
-    }
-    
-    // Parse structured exception response if available
-    let errorMsg = `HTTP Error ${res.status}`;
-    try {
-      const errData = await res.json();
-      if (errData && errData.message) {
-        errorMsg = errData.message;
-      }
-    } catch { }
-
-    errorLogger.log('API', 'WARN', `Fetch failed for ${url}: ${errorMsg}`);
-    toastManager.addToast('error', errorMsg);
-    
-    return { ok: false, data: fallback as T };
-  } catch (err: any) {
-    errorLogger.log('API', 'WARN', `Fetch failed for ${url}: ${err?.message || err}`);
-    toastManager.addToast('error', err?.message || 'Network request failed');
-    return { ok: false, data: fallback as T };
+  } else {
+    // Invalidate cache on mutations (POST/PUT/DELETE)
+    requestCache.clear();
   }
+
+  const fetchPromise = (async () => {
+    try {
+      const headers: Record<string, string> = {
+        ...(options.headers as Record<string, string> || {}),
+      };
+
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      if (options.body && !(options.body instanceof FormData)) {
+        headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+      }
+
+      const res = await fetch(url, { ...options, headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (isGet && cacheKey) {
+          requestCache.set(cacheKey, { data, expiry: Date.now() + CACHE_TTL_MS });
+        }
+        return { ok: true, data };
+      }
+      
+      // Parse structured exception response if available
+      let errorMsg = `HTTP Error ${res.status}`;
+      try {
+        const errData = await res.json();
+        if (errData && errData.message) {
+          errorMsg = errData.message;
+        }
+      } catch { }
+
+      errorLogger.log('API', 'WARN', `Fetch failed for ${url}: ${errorMsg}`);
+      toastManager.addToast('error', errorMsg);
+      
+      return { ok: false, data: fallback as T };
+    } catch (err: any) {
+      errorLogger.log('API', 'WARN', `Fetch failed for ${url}: ${err?.message || err}`);
+      toastManager.addToast('error', err?.message || 'Network request failed');
+      return { ok: false, data: fallback as T };
+    } finally {
+      if (isGet && cacheKey) {
+        inFlightRequests.delete(cacheKey);
+      }
+    }
+  })();
+
+  if (isGet && cacheKey) {
+    inFlightRequests.set(cacheKey, fetchPromise);
+  }
+
+  return fetchPromise;
 }
 
 export const api = {
