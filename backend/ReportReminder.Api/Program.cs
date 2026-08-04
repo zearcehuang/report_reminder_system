@@ -31,6 +31,7 @@ builder.Services.AddCors(options =>
 
 // Services DI
 builder.Services.AddSingleton<IJsonStoreService, JsonStoreService>();
+builder.Services.AddSingleton<IContactParserService, ContactParserService>();
 builder.Services.AddHttpClient<IDgpaHolidayService, DgpaHolidayService>();
 builder.Services.AddHttpClient<IDocumentParserService, DocumentParserService>();
 builder.Services.AddHttpClient<ITeamsWebhookService, TeamsWebhookService>();
