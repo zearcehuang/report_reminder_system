@@ -129,7 +129,13 @@ export const RuleOwnerSelector: React.FC<RuleOwnerSelectorProps> = ({
 
         {/* Live Search Input Field */}
         {ruleEnabled && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', minWidth: '160px', gap: '0.3rem' }}>
+          <div 
+            style={{ flex: 1, display: 'flex', alignItems: 'center', minWidth: '160px', gap: '0.3rem' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(true);
+            }}
+          >
             <Search size={13} color="#94a3b8" />
             <input
               type="text"
