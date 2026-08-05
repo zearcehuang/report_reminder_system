@@ -13,6 +13,8 @@ uploads/
 
 # Logs
 *.log
+
+# Data
 data/
 
 # Environment & System files
