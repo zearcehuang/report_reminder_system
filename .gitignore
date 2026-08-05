@@ -13,7 +13,7 @@ uploads/
 
 # Logs
 *.log
-data/error.log
+data/
 
 # Environment & System files
 .env
