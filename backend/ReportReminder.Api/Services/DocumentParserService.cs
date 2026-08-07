@@ -338,75 +338,78 @@ Text: {truncatedText}";
     private DocumentPreviewDto ParseHeuristic(string fileName, string textContent)
     {
         var result = new DocumentPreviewDto { FileName = fileName, ExtractedItems = new List<ParsedItem>() };
-        if (string.IsNullOrWhiteSpace(textContent)) return result;
-
-        var lines = textContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var line in lines)
+        
+        if (!string.IsNullOrWhiteSpace(textContent))
         {
-            string cleanLine = line.Trim();
-            if (cleanLine.Length < 4) continue;
+            var lines = textContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
-            DateTime? extractedDate = null;
-
-            var isoMatch = IsoRegex.Match(cleanLine);
-            if (isoMatch.Success)
+            foreach (var line in lines)
             {
-                if (DateTime.TryParse($"{isoMatch.Groups[1].Value}-{isoMatch.Groups[2].Value.PadLeft(2, '0')}-{isoMatch.Groups[3].Value.PadLeft(2, '0')}", out DateTime dt))
-                    extractedDate = dt;
-            }
+                string cleanLine = line.Trim();
+                if (cleanLine.Length < 4) continue;
 
-            if (!extractedDate.HasValue)
-            {
-                var rocMatch = RocRegex.Match(cleanLine);
-                if (rocMatch.Success)
+                DateTime? extractedDate = null;
+
+                var isoMatch = IsoRegex.Match(cleanLine);
+                if (isoMatch.Success)
                 {
-                    if (int.TryParse(rocMatch.Groups[1].Value, out int rocYear) &&
-                        int.TryParse(rocMatch.Groups[2].Value, out int month) &&
-                        int.TryParse(rocMatch.Groups[3].Value, out int day))
+                    if (DateTime.TryParse($"{isoMatch.Groups[1].Value}-{isoMatch.Groups[2].Value.PadLeft(2, '0')}-{isoMatch.Groups[3].Value.PadLeft(2, '0')}", out DateTime dt))
+                        extractedDate = dt;
+                }
+
+                if (!extractedDate.HasValue)
+                {
+                    var rocMatch = RocRegex.Match(cleanLine);
+                    if (rocMatch.Success)
                     {
-                        int gregorianYear = rocYear + 1911;
-                        if (gregorianYear >= 2000 && gregorianYear <= 2100)
+                        if (int.TryParse(rocMatch.Groups[1].Value, out int rocYear) &&
+                            int.TryParse(rocMatch.Groups[2].Value, out int month) &&
+                            int.TryParse(rocMatch.Groups[3].Value, out int day))
                         {
-                            try { extractedDate = new DateTime(gregorianYear, month, day); } catch { }
+                            int gregorianYear = rocYear + 1911;
+                            if (gregorianYear >= 2000 && gregorianYear <= 2100)
+                            {
+                                try { extractedDate = new DateTime(gregorianYear, month, day); } catch { }
+                            }
                         }
                     }
                 }
-            }
 
-            if (!extractedDate.HasValue)
-            {
-                var cnMatch = CnRegex.Match(cleanLine);
-                if (cnMatch.Success)
+                if (!extractedDate.HasValue)
                 {
-                    if (DateTime.TryParse($"{cnMatch.Groups[1].Value}-{cnMatch.Groups[2].Value.PadLeft(2, '0')}-{cnMatch.Groups[3].Value.PadLeft(2, '0')}", out DateTime dt))
-                        extractedDate = dt;
+                    var cnMatch = CnRegex.Match(cleanLine);
+                    if (cnMatch.Success)
+                    {
+                        if (DateTime.TryParse($"{cnMatch.Groups[1].Value}-{cnMatch.Groups[2].Value.PadLeft(2, '0')}-{cnMatch.Groups[3].Value.PadLeft(2, '0')}", out DateTime dt))
+                            extractedDate = dt;
+                    }
                 }
-            }
 
-            if (extractedDate.HasValue)
-            {
-                double confidence = 0.7;
-                if (Keywords.Any(k => cleanLine.Contains(k, StringComparison.OrdinalIgnoreCase)))
-                    confidence = 0.95;
-
-                string titleCandidate = cleanLine.Length > 80 ? cleanLine.Substring(0, 80) + "..." : cleanLine;
-
-                result.ExtractedItems.Add(new ParsedItem
+                if (extractedDate.HasValue)
                 {
-                    Id = Guid.NewGuid().ToString("N"),
-                    Title = titleCandidate,
-                    ExtractedDate = extractedDate.Value,
-                    RawText = cleanLine,
-                    Confidence = confidence,
-                    DayOffset = 30, // fallback value
-                    Deliverables = new List<string> { titleCandidate },
-                    PenaltyTerms = "逾期每日按本案合約總價千分之一計罰違約金",
-                    ClauseReference = "參照標案需求說明書"
-                });
+                    double confidence = 0.7;
+                    if (Keywords.Any(k => cleanLine.Contains(k, StringComparison.OrdinalIgnoreCase)))
+                        confidence = 0.95;
+
+                    string titleCandidate = cleanLine.Length > 80 ? cleanLine.Substring(0, 80) + "..." : cleanLine;
+
+                    result.ExtractedItems.Add(new ParsedItem
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        Title = titleCandidate,
+                        ExtractedDate = extractedDate.Value,
+                        RawText = cleanLine,
+                        Confidence = confidence,
+                        DayOffset = 30, // fallback value
+                        Deliverables = new List<string> { titleCandidate },
+                        PenaltyTerms = "逾期每日按本案合約總價千分之一計罰違約金",
+                        ClauseReference = "參照標案需求說明書"
+                    });
+                }
             }
         }
 
         return result;
+    }
     }
 }

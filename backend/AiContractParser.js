@@ -136,6 +136,42 @@ Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
     // Default 5-Dimension contract milestone rules
     const predefinedTemplates = [
       {
+        keyword: '名冊',
+        defaultOffset: 14,
+        matchedDate: '2026-06-22',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}專案管理成員名冊與保密切結 (訂購日起10工作日內)`,
+        deliverables: ['專案管理成員名冊', '保密同意書及切結書'],
+        penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
+        clauseReference: '參照專案服務議定書「訂購日起 10 個工作日內履約規定」'
+      },
+      {
+        keyword: '授權',
+        defaultOffset: 53,
+        matchedDate: '2026-07-31',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}授權與資安暨教育訓練交付 (115/07/31 前)`,
+        deliverables: ['授權書', '需求訪談紀錄(含驗收標準)', '資訊安全計畫書', '教育訓練教材及簽到表'],
+        penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
+        clauseReference: '參照專案服務議定書「115/07/31 前履約規定」'
+      },
+      {
+        keyword: '外撥',
+        defaultOffset: 186,
+        matchedDate: '2026-12-11',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}AI語音外撥服務成果與統計報告 (115/12/11 前)`,
+        deliverables: ['匯入名單資料', 'AI語音外撥錄音檔', '執行報告書(逐字稿、摘要紀錄)', '執行統計報表'],
+        penaltyTerms: '逾期每日按本案合約總價千分之二計罰違約金',
+        clauseReference: '參照專案服務議定書「115/12/11 前履約規定」'
+      },
+      {
+        keyword: '全案',
+        defaultOffset: 206,
+        matchedDate: '2026-12-31',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}全案履約完成與結案驗收 (115/12/31)`,
+        deliverables: ['全案履約完成結案報告', '成果驗收清冊', '智慧財產權與資產切結書'],
+        penaltyTerms: '逾期未完成結案驗收按本案合約總價千分之三計罰，機關得逕行解約並沒收履約保證金',
+        clauseReference: '參照專案服務議定書「115/12/31 全案履約完成條款」'
+      },
+      {
         keyword: '計畫書',
         defaultOffset: 30,
         title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}專案詳細執行計畫書 (PEP)`,
@@ -160,28 +196,12 @@ Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
         clauseReference: '參照專案合約條文第 8 條第 3 項「測試與品質驗收」'
       },
       {
-        keyword: '手冊',
-        defaultOffset: 150,
-        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}教育訓練與系統營運手冊`,
-        deliverables: ['使用者操作手冊', '系統管理員維運手冊', '教育訓練教材與全員簽到清冊'],
-        penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
-        clauseReference: '參照工作說明書 (SOW) 第 5.4 節「教育訓練與知識移轉」'
-      },
-      {
         keyword: '滲透',
         defaultOffset: 180,
         title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}資安資通安全與滲透測試報告`,
         deliverables: ['第三方資安滲透測試報告', '弱點複測與修補對照表'],
         penaltyTerms: '逾期未修補高風險弱點者，按每日新台幣五千元累計計罰',
         clauseReference: '參照國家資通安全防護規範第 12 條「資安檢測」'
-      },
-      {
-        keyword: '結案',
-        defaultOffset: 240,
-        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}全案驗收與結案交接報告`,
-        deliverables: ['全案結案總體執行報告', '軟體與資產移轉交接清冊', '智慧財產權切結與聲明書'],
-        penaltyTerms: '逾期未完成結案驗收按本案合約總價千分之三計罰，機關得逕行解約並沒收履約保證金',
-        clauseReference: '參照專案合約條文第 15 條「結案驗收與保固條款」'
       }
     ];
 
@@ -226,6 +246,7 @@ Text: ${text.substring(0, 10000)} // truncate to avoid token limits if necessary
         originalText: matchingLine || `合約條文: 廠商應於 D+${dayOffset} 日內交付【${template.title}】`,
         title: template.title,
         dayOffset: dayOffset,
+        matchedDate: template.matchedDate,
         deliverables: template.deliverables,
         penaltyTerms: template.penaltyTerms,
         clauseReference: template.clauseReference,
