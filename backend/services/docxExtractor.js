@@ -21,7 +21,7 @@ function extractTextFromDocx(filePath) {
       fs.copyFileSync(filePath, tempZip);
       destDir = path.join(path.dirname(filePath), 'temp_unzip_' + Date.now());
       const psCmd = `powershell -Command "Expand-Archive -Path '${tempZip.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force"`;
-      
+
       require('child_process').exec(psCmd, { timeout: 30000 }, (error) => {
         try {
           if (error) {
@@ -29,13 +29,13 @@ function extractTextFromDocx(filePath) {
             resolve('');
             return;
           }
-          
+
           const docXmlPath = path.join(destDir, 'word', 'document.xml');
           let xml = '';
           if (fs.existsSync(docXmlPath)) {
             xml = fs.readFileSync(docXmlPath, 'utf8');
           }
-          
+
           resolve(xml
             .replace(/<\/w:p>/g, '\n')
             .replace(/<\/w:tr>/g, '\n===ROW===\n')
@@ -49,7 +49,7 @@ function extractTextFromDocx(filePath) {
           try {
             if (tempZip) fs.rmSync(tempZip, { force: true });
             if (destDir) fs.rmSync(destDir, { recursive: true, force: true });
-          } catch (e) {}
+          } catch (e) { }
         }
       });
     } catch (err) {
@@ -57,7 +57,7 @@ function extractTextFromDocx(filePath) {
       try {
         if (tempZip) fs.rmSync(tempZip, { force: true });
         if (destDir) fs.rmSync(destDir, { recursive: true, force: true });
-      } catch (e) {}
+      } catch (e) { }
       resolve('');
     }
   });
