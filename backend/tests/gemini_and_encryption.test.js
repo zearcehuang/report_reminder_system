@@ -94,10 +94,29 @@ async function runTestSuite() {
     assert.strictEqual(internalKey, testKey, 'Backend should be able to decrypt the key for LLM calls');
   });
 
+  test('Validates Gemini API Key format accurately', () => {
+    assert.strictEqual(settingService.isValidGeminiApiKeyFormat('AIzaSyDemoSampleKey1234567890ABCDEF'), true);
+    assert.strictEqual(settingService.isValidGeminiApiKeyFormat('AIzaSyD9876543210ABCDEF_XYZ99'), true);
+    assert.strictEqual(settingService.isValidGeminiApiKeyFormat(''), false);
+    assert.strictEqual(settingService.isValidGeminiApiKeyFormat('short-key'), false);
+    assert.strictEqual(settingService.isValidGeminiApiKeyFormat('AIzaSy Key With Spaces 123456'), false);
+    assert.strictEqual(settingService.isValidGeminiApiKeyFormat('AIzaSy****Z99'), false);
+  });
+
   await asyncTest('Connection test responds appropriately with invalid dummy key', async () => {
     const result = await settingService.testGeminiConnection('AIzaSy_Invalid_Dummy_Key_For_Test', 'gemini-2.0-flash');
     assert.strictEqual(result.success, false, 'Invalid key should fail cleanly');
     assert(result.error && typeof result.error === 'string', 'Should return descriptive error');
+  });
+
+  await asyncTest('fetchAvailableGeminiModels returns curated defaults cleanly on invalid candidate key', async () => {
+    const modelsResult = await settingService.fetchAvailableGeminiModels('invalid-dummy-key');
+    assert.strictEqual(modelsResult.success, true);
+    assert.strictEqual(modelsResult.source, 'curated_defaults');
+    assert(Array.isArray(modelsResult.models), 'Should return models array');
+    assert(modelsResult.models.length >= 3, 'Should contain at least 3 models');
+    const hasFlash = modelsResult.models.some(m => m.id.includes('flash'));
+    assert(hasFlash, 'Should include Gemini Flash models');
   });
 
   await asyncTest('fetchAvailableGeminiModels returns latest generation models list', async () => {
@@ -105,8 +124,8 @@ async function runTestSuite() {
     assert.strictEqual(modelsResult.success, true);
     assert(Array.isArray(modelsResult.models), 'Should return models array');
     assert(modelsResult.models.length >= 3, 'Should contain at least 3 models');
-    const hasFlash2 = modelsResult.models.some(m => m.id.includes('2.0-flash') || m.id.includes('flash'));
-    assert(hasFlash2, 'Should include Gemini 2.0 / Flash models');
+    const hasFlash2 = modelsResult.models.some(m => m.id.includes('2.0-flash') || m.id.includes('flash') || m.id.includes('3.7'));
+    assert(hasFlash2, 'Should include Gemini 3.7 / 2.0 / Flash models');
   });
 
   // 3. Document Parser & 5-Dimension Extraction Tests

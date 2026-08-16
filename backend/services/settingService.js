@@ -145,7 +145,7 @@ async function testGeminiConnection(candidateKey = '', candidateModel = '') {
   const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -259,6 +259,21 @@ const CURATED_DEFAULT_MODELS = [
 ];
 
 /**
+ * Validate Gemini API Key format before making outbound network calls
+ */
+function isValidGeminiApiKeyFormat(key) {
+  if (!key || typeof key !== 'string') return false;
+  const trimmed = key.trim();
+  // Valid Google Gemini API keys are typically ~39 characters starting with AIza, and have no spaces
+  if (trimmed.length < 20) return false;
+  if (/\s/.test(trimmed)) return false;
+  if (trimmed.includes('****')) return false;
+  // If it starts with AIza or has standard alphanumeric key structure
+  if (trimmed.startsWith('AIza')) return true;
+  return /^[A-Za-z0-9_-]{20,}$/.test(trimmed);
+}
+
+/**
  * Fetch list of available generation models from Google API or fallback list
  */
 async function fetchAvailableGeminiModels(candidateKey = '') {
@@ -266,7 +281,7 @@ async function fetchAvailableGeminiModels(candidateKey = '') {
     ? candidateKey.trim()
     : getDecryptedGeminiKey();
 
-  if (!apiKey) {
+  if (!apiKey || !isValidGeminiApiKeyFormat(apiKey)) {
     return {
       success: true,
       source: 'curated_defaults',
@@ -278,7 +293,7 @@ async function fetchAvailableGeminiModels(candidateKey = '') {
   const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -286,7 +301,17 @@ async function fetchAvailableGeminiModels(candidateKey = '') {
     });
 
     if (!response.ok) {
-      logError('GEMINI_FETCH_MODELS_FAIL', `HTTP ${response.status}: ${response.statusText}`);
+      let detailMsg = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errJson = await response.json();
+        if (errJson?.error?.message) {
+          detailMsg = `${detailMsg} (${errJson.error.message})`;
+        }
+      } catch (_) {}
+
+      // Log as warning rather than critical error log to avoid false alarm in UI
+      console.warn(`[GEMINI_FETCH_MODELS_WARN] ${detailMsg}`);
+
       return {
         success: true,
         source: 'curated_defaults',
@@ -307,14 +332,14 @@ async function fetchAvailableGeminiModels(candidateKey = '') {
 
     const parsedModels = filtered.map(m => {
       const id = m.name.replace(/^models\//, '');
-      const isRecommended = id === 'gemini-2.0-flash';
+      const isRecommended = id === 'gemini-3.7-flash' || id === 'gemini-2.0-flash';
       const isLatest = id.includes('2.0') || id.includes('2.5') || id.includes('3.');
       return {
         id,
         name: id,
         displayName: m.displayName || id,
         description: m.description || '',
-        isRecommended,
+        isRecommended: id === 'gemini-3.7-flash',
         isLatest
       };
     });
@@ -335,7 +360,9 @@ async function fetchAvailableGeminiModels(candidateKey = '') {
       models: parsedModels.length > 0 ? parsedModels : CURATED_DEFAULT_MODELS
     };
   } catch (err) {
-    logError('GEMINI_FETCH_MODELS_ERR', err);
+    if (err.name !== 'AbortError') {
+      console.warn(`[GEMINI_FETCH_MODELS_WARN] ${err.message}`);
+    }
     return {
       success: true,
       source: 'curated_defaults',
@@ -354,5 +381,6 @@ module.exports = {
   updateSettings,
   testGeminiConnection,
   fetchAvailableGeminiModels,
+  isValidGeminiApiKeyFormat,
   CURATED_DEFAULT_MODELS
 };
