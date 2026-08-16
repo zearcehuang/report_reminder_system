@@ -14,7 +14,8 @@ import {
   Shield,
   BookOpen,
   UserCheck,
-  Activity
+  Activity,
+  Sparkles
 } from 'lucide-react';
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
   onOpenSchedulerLogModal: () => void;
   onOpenUserAuthModal: () => void;
   onOpenUserPermissionModal: () => void;
+  onOpenSystemSettingsModal?: () => void;
 }
 
 export const Navbar: React.FC<Props> = memo(({
@@ -45,6 +47,7 @@ export const Navbar: React.FC<Props> = memo(({
   onOpenSchedulerLogModal,
   onOpenUserAuthModal,
   onOpenUserPermissionModal,
+  onOpenSystemSettingsModal,
 }) => {
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -196,6 +199,37 @@ export const Navbar: React.FC<Props> = memo(({
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, padding: '0.4rem 0.6rem 0.25rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.35rem' }}>
                   組態與系統日誌模組 (SYSTEM & LOGS)
                 </div>
+
+                <button
+                  onClick={() => {
+                    setIsToolsMenuOpen(false);
+                    if (onOpenSystemSettingsModal) onOpenSystemSettingsModal();
+                  }}
+                  className="dropdown-item-hover"
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.65rem',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-primary)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.65rem',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Sparkles size={17} color="#6366f1" />
+                  <div>
+                    <div style={{ fontSize: '0.825rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span>Gemini AI 與系統設定</span>
+                      <span style={{ fontSize: '0.65rem', background: '#e0e7ff', color: '#4338ca', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 700 }}>加密</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>API Key 配置、模型切換與連線測試</div>
+                  </div>
+                </button>
 
                 <button
                   onClick={() => {

@@ -13,6 +13,7 @@ const EditReportModal = lazy(() => import('./EditReportModal').then(m => ({ defa
 const SchedulerLogModal = lazy(() => import('./SchedulerLogModal').then(m => ({ default: m.SchedulerLogModal })));
 const UserAuthModal = lazy(() => import('./UserAuthModal').then(m => ({ default: m.UserAuthModal })));
 const UserPermissionModal = lazy(() => import('./UserPermissionModal').then(m => ({ default: m.UserPermissionModal })));
+const SystemSettingsModal = lazy(() => import('./SystemSettingsModal').then(m => ({ default: m.SystemSettingsModal })));
 
 const ModalFallback = () => (
   <div style={{
@@ -156,6 +157,13 @@ export const GlobalModalContainer: React.FC<GlobalModalContainerProps> = ({
           isOpen={modals.userPermission.isOpen}
           onClose={modals.userPermission.close}
           currentUser={currentUser}
+        />
+      )}
+
+      {modals.systemSettings.isOpen && (
+        <SystemSettingsModal
+          isOpen={modals.systemSettings.isOpen}
+          onClose={modals.systemSettings.close}
         />
       )}
     </Suspense>

@@ -19,6 +19,7 @@ export function useAppModals() {
   const userPermission = useModal();
   const editReport = useModal();
   const documentPreview = useModal();
+  const systemSettings = useModal();
 
   return {
     projectManager,
@@ -30,6 +31,7 @@ export function useAppModals() {
     userAuth,
     userPermission,
     editReport,
-    documentPreview
+    documentPreview,
+    systemSettings
   };
 }

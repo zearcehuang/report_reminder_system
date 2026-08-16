@@ -118,6 +118,7 @@ export const App: React.FC = () => {
         onOpenSchedulerLogModal={modals.schedulerLog.open}
         onOpenUserAuthModal={modals.userAuth.open}
         onOpenUserPermissionModal={modals.userPermission.open}
+        onOpenSystemSettingsModal={modals.systemSettings.open}
       />
 
       <main style={{ flex: 1, maxWidth: '1400px', width: '100%', margin: '0 auto', padding: '2rem 2rem 4rem' }}>

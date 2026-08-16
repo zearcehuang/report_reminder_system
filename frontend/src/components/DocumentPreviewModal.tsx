@@ -222,7 +222,41 @@ export const DocumentPreviewModal: React.FC<Props> = ({
                       </p>
                     )}
 
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: isExpanded ? '0.65rem' : '0' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: isExpanded ? '0.65rem' : '0' }}>
+                      {/* Recognition Engine Badge */}
+                      {m.source?.includes('gemini') ? (
+                        <span style={{
+                          fontSize: '0.7rem',
+                          background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+                          color: '#4338ca',
+                          border: '1px solid #c7d2fe',
+                          padding: '0.1rem 0.5rem',
+                          borderRadius: '999px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          fontWeight: 700
+                        }}>
+                          <Sparkles size={11} color="#6366f1" />
+                          Gemini AI 智慧辨識 ({m.confidence || 96}%)
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: '0.7rem',
+                          background: '#f1f5f9',
+                          color: '#475569',
+                          border: '1px solid #cbd5e1',
+                          padding: '0.1rem 0.5rem',
+                          borderRadius: '999px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          fontWeight: 600
+                        }}>
+                          ⚡ 規則式解析 ({m.confidence || 85}%)
+                        </span>
+                      )}
+
                       {(m.owners || ['張小明 (PM)']).map((owner) => (
                         <span key={owner} style={{ fontSize: '0.725rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.2rem', background: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
                           <User size={12} color="#4f46e5" /> {owner}

@@ -13,6 +13,9 @@ import {
   UserSession,
   UserItem,
   RoleItem,
+  SystemSettings,
+  GeminiTestResult,
+  GeminiModelInfo,
 } from '../types';
 import { errorLogger } from './logger';
 import { toastManager } from '../context/ToastContext';
@@ -543,6 +546,53 @@ export const api = {
 
   async deleteRole(id: string): Promise<{ success: boolean; error?: string }> {
     const { data } = await fetchApi<{ success: boolean; error?: string }>(`/api/roles/${id}`, { method: 'DELETE' }, { success: false, error: '刪除角色失敗' });
+    return data;
+  },
+
+  // System Settings & Gemini AI APIs
+  async getSettings(): Promise<SystemSettings> {
+    const { data } = await fetchApi<{ success: boolean; settings: SystemSettings }>('/api/settings', {}, {
+      success: true,
+      settings: {
+        hasGeminiApiKey: false,
+        geminiApiKeyMasked: '',
+        geminiModel: 'gemini-2.0-flash',
+        autoUseGemini: true,
+        temperature: 0.2,
+        updatedAt: null
+      }
+    });
+    return data.settings;
+  },
+
+  async updateSettings(settingsData: { geminiApiKey?: string; geminiModel?: string; autoUseGemini?: boolean; temperature?: number }): Promise<{ success: boolean; message?: string; settings?: SystemSettings; error?: string }> {
+    const { data } = await fetchApi<{ success: boolean; message?: string; settings?: SystemSettings; error?: string }>('/api/settings', {
+      method: 'POST',
+      body: JSON.stringify(settingsData)
+    }, { success: false, error: '更新設定失敗' });
+    return data;
+  },
+
+  async testGeminiConnection(apiKey?: string, model?: string): Promise<GeminiTestResult> {
+    const { data } = await fetchApi<GeminiTestResult>('/api/settings/test-gemini', {
+      method: 'POST',
+      body: JSON.stringify({ apiKey, model })
+    }, { success: false, error: '測試連線發生錯誤' });
+    return data;
+  },
+
+  async getAvailableGeminiModels(apiKey?: string): Promise<{ success: boolean; source: string; models: GeminiModelInfo[]; warning?: string }> {
+    const query = apiKey ? `?apiKey=${encodeURIComponent(apiKey)}` : '';
+    const { data } = await fetchApi<{ success: boolean; source: string; models: GeminiModelInfo[]; warning?: string }>(`/api/settings/gemini-models${query}`, {}, {
+      success: true,
+      source: 'fallback',
+      models: [
+        { id: 'gemini-2.0-flash', name: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash', isRecommended: true, isLatest: true },
+        { id: 'gemini-2.0-flash-lite-preview-02-05', name: 'gemini-2.0-flash-lite-preview-02-05', displayName: 'Gemini 2.0 Flash Lite (Preview)', isLatest: true },
+        { id: 'gemini-1.5-flash', name: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
+        { id: 'gemini-1.5-pro', name: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' }
+      ]
+    });
     return data;
   },
 

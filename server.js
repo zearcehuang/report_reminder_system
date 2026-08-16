@@ -54,6 +54,7 @@ const contactRoutes = require('./backend/routes/contactRoutes');
 const holidayRoutes = require('./backend/routes/holidayRoutes');
 const notificationRoutes = require('./backend/routes/notificationRoutes');
 const documentRoutes = require('./backend/routes/documentRoutes');
+const settingRoutes = require('./backend/routes/settingRoutes');
 const createSchedulerRouter = require('./backend/routes/schedulerRoutes');
 
 app.use('/api/projects', projectRoutes);
@@ -65,6 +66,7 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/settings', settingRoutes);
 app.use('/api/scheduler', createSchedulerRouter(schedulerService));
 
 // Additional error log API endpoint

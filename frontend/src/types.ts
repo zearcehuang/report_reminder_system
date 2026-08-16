@@ -102,11 +102,39 @@ export interface SchedulerStatus {
   totalLogsCount: number;
 }
 
+export interface SystemSettings {
+  hasGeminiApiKey: boolean;
+  geminiApiKeyMasked: string;
+  geminiModel: string;
+  autoUseGemini: boolean;
+  temperature: number;
+  updatedAt?: string | null;
+}
+
+export interface GeminiTestResult {
+  success: boolean;
+  latencyMs?: number;
+  model?: string;
+  message?: string;
+  error?: string;
+  data?: string;
+}
+
+export interface GeminiModelInfo {
+  id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  isRecommended?: boolean;
+  isLatest?: boolean;
+}
+
 export interface ExtractedMilestone {
   id: string;
   originalText: string;
   title: string;
   matchedDate: string;
+  date?: string;
   dayOffset: number;
   owners: string[];
   selected: boolean;
@@ -114,6 +142,8 @@ export interface ExtractedMilestone {
   penaltyTerms?: string;
   clauseReference?: string;
   location?: string;
+  source?: 'gemini_ai' | 'gemini_multimodal' | 'openai_ai' | 'rule_heuristic' | string;
+  confidence?: number;
 }
 
 export interface DocumentExtractResult {
@@ -121,6 +151,7 @@ export interface DocumentExtractResult {
   fileSize: string;
   parsedCount: number;
   extractedMilestones: ExtractedMilestone[];
+  source?: string;
 }
 
 export interface SenderAccount {

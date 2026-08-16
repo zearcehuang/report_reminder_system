@@ -8,6 +8,18 @@ interface ToastContextType {
 
 export const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+export const useToast = () => {
+  const context = useContext(ToastContext);
+  return {
+    showSuccess: (msg: string) => context?.addToast('success', msg),
+    showError: (msg: string) => context?.addToast('error', msg),
+    showWarning: (msg: string) => context?.addToast('warning', msg),
+    showInfo: (msg: string) => context?.addToast('info', msg),
+    addToast: context?.addToast,
+    confirm: context?.confirm,
+  };
+};
+
 export const toastManager = {
   addToast: (type: ToastType, message: string) => {
     console.warn('ToastProvider not mounted:', message, type);
