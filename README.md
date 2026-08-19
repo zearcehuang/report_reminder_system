@@ -86,6 +86,18 @@
 
 ---
 
+## 🔑 預設測試帳號 (Default Credentials)
+
+系統初始化已建立預設角色測試帳號，可於系統介面右上角切換或直接登入：
+
+| 帳號 (Email) | 預設密碼 | 角色 (Role) | 權限範圍說明 |
+| :--- | :--- | :--- | :--- |
+| `admin@company.com` | `admin123` | **Admin** (系統最高管理員) | 具備系統全部權限（專案、日曆、使用者、權限矩陣、系統設定、Gemini 金鑰、排程觸發） |
+| `alex.chang@company.com` | `pm123` | **PM** (專案經理) | 專案日常營運（開工日調整、報告編輯、合約解析、Outlook 邀請發布與標記繳交） |
+| `auditor@company.com` | `auditor123` | **Auditor** (合約審核員) | 純唯讀檢視與時程查核（可下載 .ics、查看排程日誌，無法修改或刪除資料） |
+
+---
+
 ## 📦 環境需求 (Prerequisites)
 
 - **Node.js**：`>= 18.0.0` (建議使用 18.x 或 20.x LTS)
@@ -96,14 +108,11 @@
 
 ## 🚀 套件安裝說明 (Installation)
 
-### Step 1: 安裝專案根目錄（後端）套件
+### Step 1: 安裝後端依賴套件
 
-開啟終端機 (Terminal / PowerShell / Bash)，進入專案根目錄並安裝依賴套件：
+開啟終端機 (Terminal / PowerShell / Bash)，於專案根目錄下安裝依賴：
 
 ```bash
-# 進入專案根目錄
-cd report_reminder_system
-
 # 安裝根目錄 (Express / Node.js / Crypto) 相關套件
 npm install
 ```
@@ -111,10 +120,8 @@ npm install
 ### Step 2: 安裝前端 React 套件
 
 ```bash
-# 進入前端目錄
+# 進入前端目錄並安裝依賴
 cd frontend
-
-# 安裝前端 (React / TypeScript / Vite) 相關套件
 npm install
 
 # 回到專案根目錄
@@ -132,7 +139,7 @@ cd ..
 在此模式下，Express 後端伺服器將同時處理 API 請求、啟動背景自動定時排程器、RBAC 驗證與 Gemini AI 服務，並靜態託管編譯後的前端頁面 (Port `5000`)。
 
 ```bash
-# 1. 編譯前端專案 (生成 frontend/dist 檔案)
+# 1. 編譯前端專案 (生成 frontend/dist 靜態檔案)
 npm run build:frontend
 
 # 2. 啟動後端伺服器 (包含背景自動排程器與靜態頁面託管)
@@ -244,7 +251,6 @@ node test_scenarios.js
 ## 📁 專案目錄結構 (Project Structure)
 
 ```text
-report_reminder_system/
 ├── backend/                      # 後端核心模組與常駐服務
 │   ├── routes/                   # 模組化 Express 路由控制器
 │   │   ├── authRoutes.js         # 使用者登入認證與 Token 發放
@@ -341,3 +347,4 @@ report_reminder_system/
 ## 📄 授權條款 (License)
 
 MIT License © 2026 專案履約報告繳交提醒與 Outlook 會議發布系統團隊
+
