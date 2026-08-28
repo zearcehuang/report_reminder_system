@@ -2,15 +2,67 @@
  * AiContractParser.js
  * 雙軌合約深度解析服務引擎 (Dual-Engine Contract Intelligence Parser)
  * 支援萃取履約名稱、D+N 天數、交付產出物清單、逾期罰則條文與原始條文索引 (合約五維度 Schema)
- * 支援 Gemini 2.0 / 1.5 系列純文字與多模態 (Multimodal PDF/Image) 文件解析
+ * 支援 Gemini 2.5 / 3.x 系列 Structured Outputs (JSON Schema)、長文件智慧章節分塊合併 (Chunking & Map-Reduce)
  */
 
 const { logError } = require('./services/errorLogger');
 const settingService = require('./services/settingService');
 
+/**
+ * Official JSON Schema for Gemini Structured Output
+ */
+const CONTRACT_MILESTONES_SCHEMA = {
+  type: 'object',
+  properties: {
+    contractSummary: {
+      type: 'object',
+      properties: {
+        projectName: { type: 'string', description: '標案或專案名稱' },
+        contractor: { type: 'string', description: '得標廠商/承包單位' },
+        client: { type: 'string', description: '招標機關/業主' },
+        signingDate: { type: 'string', description: '決標日或簽約日 (YYYY-MM-DD)' },
+        estimatedDurationDays: { type: 'integer', description: '全案總履約天數' }
+      }
+    },
+    milestones: {
+      type: 'array',
+      description: '所有履約查核點、報告提送項目與交付驗收里程碑清單',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: '里程碑/報告/交付名稱' },
+          stage: {
+            type: 'string',
+            enum: ['啟動籌備', '需求分析', '系統設計', '系統開發', '期中審查', '測試驗收', '期末結案', '維護保固', '定期進度報告'],
+            description: '專案履約所屬階段'
+          },
+          dayOffset: { type: 'integer', description: '自決標/簽約日 (D-Day) 起算之履約天數 (D+N)' },
+          dayType: {
+            type: 'string',
+            enum: ['calendar', 'workday'],
+            description: '天數類型：calendar (日曆天) 或 workday (工作天)'
+          },
+          matchedDate: { type: 'string', description: '合約內明載之特定西元日期 (YYYY-MM-DD) 或空字串' },
+          deliverables: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '此階段應提送之具體文件、成果物或清冊清單'
+          },
+          penaltyTerms: { type: 'string', description: '此階段對應之逾期違約罰則或扣款規定' },
+          clauseReference: { type: 'string', description: '合約/需求說明書之對應條文章節出處 (例如: 契約第 7 條第 2 款)' },
+          location: { type: 'string', description: '條文或表格於文件中的位置 (例如: 第 8 頁或第 3.2 節)' },
+          confidence: { type: 'integer', description: '辨識信心指數 (70-100)' }
+        },
+        required: ['title', 'dayOffset', 'deliverables', 'penaltyTerms', 'clauseReference']
+      }
+    }
+  },
+  required: ['milestones']
+};
+
 class AiContractParser {
   /**
-   * Parse text using LLM (Gemini / OpenAI) with automatic fallback
+   * Parse text using LLM (Gemini / OpenAI) with automatic fallback & chunking
    * @param {string} text Extracted document plain text
    * @param {string} fileName Original document file name
    */
@@ -37,6 +89,108 @@ class AiContractParser {
       console.error(`[AiContractParser] Gemini/LLM parsing failed (${err.message}). Falling back to heuristic rules.`);
       return this.parse(text, fileName);
     }
+  }
+
+  /**
+   * Split long document text by logical contract sections & sliding windows
+   * @param {string} text Raw text
+   * @param {number} maxChunkSize Max characters per chunk (default 12000)
+   * @param {number} overlap Overlap characters between chunks (default 1000)
+   * @returns {string[]} Array of chunked text
+   */
+  static chunkTextBySections(text = '', maxChunkSize = 12000, overlap = 1000) {
+    if (!text || text.length <= maxChunkSize) {
+      return [text || ''];
+    }
+
+    const chunks = [];
+    let startIndex = 0;
+
+    while (startIndex < text.length) {
+      let endIndex = startIndex + maxChunkSize;
+      if (endIndex >= text.length) {
+        chunks.push(text.substring(startIndex).trim());
+        break;
+      }
+
+      // Try to break at a clean article / section boundary within the last 1500 chars of chunk
+      const searchWindow = text.substring(Math.max(startIndex, endIndex - 1500), endIndex);
+      const articleBreakMatch = searchWindow.search(/\n(?=(第[一二三四五六七八九十百0-9]+[條節章點]|【|\d+\.\d+|\n))/);
+
+      if (articleBreakMatch !== -1) {
+        endIndex = (Math.max(startIndex, endIndex - 1500)) + articleBreakMatch;
+      }
+
+      const chunk = text.substring(startIndex, endIndex).trim();
+      if (chunk) chunks.push(chunk);
+
+      startIndex = Math.max(startIndex + 1, endIndex - overlap);
+    }
+
+    return chunks;
+  }
+
+  /**
+   * Merge and deduplicate milestones from multiple chunks
+   * @param {Array} milestoneLists Array of milestone arrays
+   * @param {string} fileName File name
+   * @param {string} engine Engine identifier
+   * @returns {Array} Clean merged milestones
+   */
+  static mergeAndDeduplicateMilestones(milestoneLists, fileName, engine = 'gemini_ai') {
+    const flattened = milestoneLists.flat().filter(Boolean);
+    if (flattened.length === 0) return [];
+
+    const map = new Map();
+
+    for (const m of flattened) {
+      if (!m || !m.title) continue;
+
+      // Normalize title for deduplication
+      const cleanTitle = m.title.replace(/\s+/g, '').replace(/[（(][^）)]*[）)]/g, '').toLowerCase();
+      const key = `${cleanTitle}_${m.dayOffset || 0}`;
+
+      if (!map.has(key)) {
+        map.set(key, m);
+      } else {
+        const existing = map.get(key);
+        // Merge deliverables
+        const mergedDeliverables = Array.from(new Set([
+          ...(existing.deliverables || []),
+          ...(m.deliverables || [])
+        ]));
+
+        map.set(key, {
+          ...existing,
+          deliverables: mergedDeliverables,
+          confidence: Math.max(existing.confidence || 80, m.confidence || 80),
+          penaltyTerms: existing.penaltyTerms && existing.penaltyTerms.length > (m.penaltyTerms || '').length
+            ? existing.penaltyTerms
+            : m.penaltyTerms || existing.penaltyTerms,
+          clauseReference: existing.clauseReference || m.clauseReference
+        });
+      }
+    }
+
+    const uniqueList = Array.from(map.values());
+    uniqueList.sort((a, b) => (a.dayOffset ?? 0) - (b.dayOffset ?? 0));
+
+    return uniqueList.map((m, idx) => ({
+      id: `ext-ai-${Date.now()}-${idx + 1}`,
+      originalText: `🤖 AI (${engine}) 解析自: ${fileName}`,
+      title: m.title || '專案關鍵里程碑',
+      dayOffset: typeof m.dayOffset === 'number' && m.dayOffset >= 0 ? m.dayOffset : 30,
+      dayType: m.dayType === 'workday' ? 'workday' : 'calendar',
+      stage: m.stage || '履約查核點',
+      matchedDate: m.matchedDate || '',
+      deliverables: Array.isArray(m.deliverables) && m.deliverables.length > 0 ? m.deliverables : [`${m.title || '履約'}成果報告書`],
+      penaltyTerms: m.penaltyTerms || '逾期每日按本案合約總價千分之一計罰違約金',
+      clauseReference: m.clauseReference || '參照標案需求說明書履約條款',
+      location: m.location || '合約段落',
+      confidence: m.confidence || 96,
+      source: engine,
+      selected: true
+    }));
   }
 
   /**
@@ -86,6 +240,7 @@ class AiContractParser {
             ],
             generationConfig: {
               responseMimeType: 'application/json',
+              responseSchema: CONTRACT_MILESTONES_SCHEMA,
               temperature: 0.1
             }
           }),
@@ -121,62 +276,83 @@ class AiContractParser {
     return [];
   }
 
+  /**
+   * Call Gemini with Structured Outputs and automatic long document chunking
+   */
   static async callGemini(text, fileName, apiKey, requestedModel = 'gemini-3.7-flash', temperature = 0.2) {
     const candidateModels = [requestedModel, 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
       .filter((v, i, a) => v && a.indexOf(v) === i);
 
-    const prompt = this.getPrompt(text, fileName);
+    const chunks = this.chunkTextBySections(text, 14000, 1200);
+    const chunkResults = [];
 
-    for (const model of candidateModels) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
+    for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
+      const chunkText = chunks[cIdx];
+      const prompt = this.getPrompt(chunkText, fileName, cIdx + 1, chunks.length);
+      let parsedThisChunk = false;
 
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: typeof temperature === 'number' ? temperature : 0.2
+      for (const model of candidateModels) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 28000);
+
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                responseMimeType: 'application/json',
+                responseSchema: CONTRACT_MILESTONES_SCHEMA,
+                temperature: typeof temperature === 'number' ? temperature : 0.2
+              }
+            }),
+            signal: controller.signal
+          });
+
+          if (!res.ok) {
+            const errText = await res.text();
+            console.warn(`[AiContractParser] callGemini with ${model} (chunk ${cIdx + 1}/${chunks.length}) returned HTTP ${res.status}: ${errText.slice(0, 120)}`);
+            if (res.status === 404 || res.status === 400 || res.status === 503) {
+              continue; // try next candidate model
             }
-          }),
-          signal: controller.signal
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          console.warn(`[AiContractParser] callGemini with ${model} returned HTTP ${res.status}: ${errText.slice(0, 120)}`);
-          if (res.status === 404 || res.status === 400 || res.status === 503) {
-            continue; // try next candidate model
+            throw new Error(`Gemini API Error (HTTP ${res.status}): ${errText.slice(0, 200)}`);
           }
-          throw new Error(`Gemini API Error (HTTP ${res.status}): ${errText.slice(0, 200)}`);
-        }
 
-        const data = await res.json();
-        const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!resultText) throw new Error('Gemini returned empty response parts');
+          const data = await res.json();
+          const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!resultText) throw new Error('Gemini returned empty response parts');
 
-        const cleanContent = this.cleanJsonString(resultText);
-        const result = JSON.parse(cleanContent);
-        return this.formatLlmResult(result, fileName, 'gemini_ai');
-      } catch (err) {
-        if (candidateModels.indexOf(model) < candidateModels.length - 1) {
-          continue;
+          const cleanContent = this.cleanJsonString(resultText);
+          const result = JSON.parse(cleanContent);
+          if (result && Array.isArray(result.milestones)) {
+            chunkResults.push(result.milestones);
+          }
+          parsedThisChunk = true;
+          break; // successfully parsed chunk
+        } catch (err) {
+          if (candidateModels.indexOf(model) < candidateModels.length - 1) {
+            continue;
+          }
+          throw err;
+        } finally {
+          clearTimeout(timeoutId);
         }
-        throw err;
-      } finally {
-        clearTimeout(timeoutId);
+      }
+
+      if (!parsedThisChunk && chunks.length > 1) {
+        console.warn(`[AiContractParser] Failed to parse chunk ${cIdx + 1}/${chunks.length}, continuing with remaining.`);
       }
     }
+
+    return this.mergeAndDeduplicateMilestones(chunkResults, fileName, 'gemini_ai');
   }
 
   static async callOpenAI(text, fileName, apiKey) {
-    const prompt = this.getPrompt(text, fileName);
+    const prompt = this.getPrompt(text, fileName, 1, 1);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 18000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
     try {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -215,155 +391,157 @@ class AiContractParser {
     return clean;
   }
 
-  static getPrompt(text, fileName) {
+  static getPrompt(text, fileName, chunkIndex = 1, totalChunks = 1) {
     return `你是一位資深的政府機關與企業標案合約稽核與專案管理專家。
-請仔細分析下列合約/標案文件內容，精準萃取所有「專案履約里程碑、報告提送項目、交付查核點」。
+請仔細分析下列合約/標案文件內容${totalChunks > 1 ? `（此為長文件第 ${chunkIndex}/${totalChunks} 分塊）` : ''}，精準萃取所有「專案履約里程碑、報告提送項目、交付查核點與驗收結案項目」。
 
 針對每一個里程碑，請嚴格萃取以下「合約五維度 (5 Dimensions)」欄位：
-1. title (String): 里程碑/報告名稱 (例如: "專案詳細執行計畫書 (PEP)", "系統架構與詳細設計規格書", "期中工作進度報告", "期末驗收結案報告")
-2. dayOffset (Number): 履約死線天數 (以 D+N 天數計算，例如簽約後 30 日填寫 30；若內文為民國/西元日期請換算或預估合理天數)
-3. deliverables (Array of Strings): 該階段應交付之具體產出物清單 (例如: ["專案執行計畫書", "時程甘特圖", "資安防護計畫"])
-4. penaltyTerms (String): 逾期違約罰則條文 (例如: "逾期每日按本案合約總價千分之一計罰違約金")
-5. clauseReference (String): 合約/需求說明書對應條文章節 (例如: "需求說明書第 3.1 節「履約管理」")
-6. location (String): 條文於文件中的位置 (例如: "第 15 頁", "第 4.2 條")
-7. confidence (Number): 辨識信心度 (80-99 之間整數)
-
-請以繁體中文回應，並輸出純 JSON 格式：
-{
-  "milestones": [
-    {
-      "title": "專案詳細執行計畫書 (PEP)",
-      "dayOffset": 30,
-      "deliverables": ["專案詳細執行計畫書", "專案時程甘特圖"],
-      "penaltyTerms": "逾期每日按合約總價千分之一計罰違約金",
-      "clauseReference": "工作說明書第 3 條",
-      "location": "第 3 條第 1 項",
-      "confidence": 98
-    }
-  ]
-}
+1. title (String): 里程碑/報告名稱 (例如: "專案詳細執行計畫書 (PEP)", "系統架構與詳細設計規格書", "期中工作進度報告", "資通安全檢測報告", "期末驗收結案報告")
+2. stage (String): 階段分類 (啟動籌備 / 需求分析 / 系統設計 / 系統開發 / 期中審查 / 測試驗收 / 期末結案 / 維護保固 / 定期進度報告)
+3. dayOffset (Number): 履約死線天數 (以決標日或簽約日起算之 D+N 天數計算；若條文標註為特定日期如 115/12/31 或簽約後 N 日曆天/工作天，請自動換算合理累計天數)
+4. dayType (String): 天數性質 ('calendar' 表示日曆天，'workday' 表示工作天)
+5. deliverables (Array of Strings): 該階段應交付之具體產出物清單 (例如: ["專案執行計畫書", "時程甘特圖", "資安防護計畫"])
+6. penaltyTerms (String): 逾期違約罰則條文 (例如: "逾期每日按本案合約總價千分之一計罰違約金，上限為契約價金總額 20%")
+7. clauseReference (String): 合約/需求說明書對應條文章節 (例如: "契約第 7 條「履約期限」第 1 款" 或 "需求說明書第 3.2 節")
+8. location (String): 條文於文件中的位置 (例如: "第 15 頁", "第 4.2 條")
+9. confidence (Number): 辨識信心度 (85-99 之間整數)
 
 合約檔案名稱: ${fileName || '合約文件'}
 文件內文:
-${text.substring(0, 18000)}
+${text}
 `;
   }
 
   static getMultimodalPrompt(fileName) {
     return `你是一位資深的政府機關與企業標案合約稽核與專案管理專家。
-請仔細閱讀此份合約/標案/企劃書文件（包含圖表、表格與條文掃描內容），萃取所有專案履約里程碑與報告提送項目。
+請仔細閱讀此份合約/標案/企劃書文件（包含圖表、表格與條文掃描內容），萃取所有專案履約里程碑、產出物交付查核點與驗收結案項目。
 
-請針對每個項目輸出以下五維度 JSON 結構：
-{
-  "milestones": [
-    {
-      "title": "里程碑/報告名稱",
-      "dayOffset": 30,
-      "deliverables": ["應交付之產出物清單"],
-      "penaltyTerms": "逾期罰則條文",
-      "clauseReference": "條文出處章節",
-      "location": "文件頁碼或段落",
-      "confidence": 95
-    }
-  ]
-}
+請針對每個項目輸出嚴格五維度結構：
+- title: 里程碑名稱
+- stage: 階段分類
+- dayOffset: 簽約/決標日起算之 D+N 天數
+- dayType: calendar 或 workday
+- deliverables: 交付產出物清單
+- penaltyTerms: 逾期罰則條文
+- clauseReference: 條文出處章節
+- location: 文件頁碼或段落
+- confidence: 信心度 (85-99)
 
-檔案名稱: ${fileName || '合約文件'}
-請以純 JSON 格式返回，不要包含 markdown 說明。`;
+檔案名稱: ${fileName || '合約文件'}`;
   }
 
   static formatLlmResult(result, fileName, engine = 'gemini_ai') {
     if (!result || !Array.isArray(result.milestones)) return [];
-    return result.milestones.map((m, idx) => ({
-      id: `ext-ai-${Date.now()}-${idx + 1}`,
-      originalText: `🤖 AI (${engine}) 解析自: ${fileName}`,
-      title: m.title || '專案關鍵里程碑',
-      dayOffset: typeof m.dayOffset === 'number' && m.dayOffset >= 0 ? m.dayOffset : 30,
-      deliverables: Array.isArray(m.deliverables) && m.deliverables.length > 0 ? m.deliverables : [`${m.title || '履約'}成果報告書`],
-      penaltyTerms: m.penaltyTerms || '逾期每日按本案合約總價千分之一計罰違約金',
-      clauseReference: m.clauseReference || '參照標案需求說明書履約條款',
-      location: m.location || '合約段落',
-      confidence: m.confidence || 96,
-      source: engine,
-      selected: true
-    }));
+    return this.mergeAndDeduplicateMilestones([result.milestones], fileName, engine);
   }
 
   /**
-   * Rule-based heuristic parser (Offline fallback)
+   * Rule-based heuristic parser (Enhanced Taiwan Procurement Rules Fallback)
    */
   static parse(text = '', fileName = '') {
     const cleanText = text.trim();
-    const lines = cleanText.split(/\r?\n/).map(l => l.trim());
+    const lines = cleanText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
     const predefinedTemplates = [
       {
         keyword: '名冊',
-        defaultOffset: 14,
-        matchedDate: '2026-06-22',
+        stage: '啟動籌備',
+        defaultOffset: 10,
+        dayType: 'workday',
         title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}專案管理成員名冊與保密切結 (訂購日起10工作日內)`,
-        deliverables: ['專案管理成員名冊', '保密同意書及切結書'],
+        deliverables: ['專案管理成員名冊', '保密同意書及切結書', '資通安全維護計畫'],
         penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
         clauseReference: '參照專案服務議定書「訂購日起 10 個工作日內履約規定」'
       },
       {
-        keyword: '授權',
-        defaultOffset: 53,
-        matchedDate: '2026-07-31',
-        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}授權與資安暨教育訓練交付 (115/07/31 前)`,
-        deliverables: ['授權書', '需求訪談紀錄(含驗收標準)', '資訊安全計畫書', '教育訓練教材及簽到表'],
-        penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
-        clauseReference: '參照專案服務議定書「115/07/31 前履約規定」'
-      },
-      {
-        keyword: '外撥',
-        defaultOffset: 186,
-        matchedDate: '2026-12-11',
-        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}AI語音外撥服務成果與統計報告 (115/12/11 前)`,
-        deliverables: ['匯入名單資料', 'AI語音外撥錄音檔', '執行報告書(逐字稿、摘要紀錄)', '執行統計報表'],
-        penaltyTerms: '逾期每日按本案合約總價千分之二計罰違約金',
-        clauseReference: '參照專案服務議定書「115/12/11 前履約規定」'
-      },
-      {
-        keyword: '全案',
-        defaultOffset: 206,
-        matchedDate: '2026-12-31',
-        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}全案履約完成與結案驗收 (115/12/31)`,
-        deliverables: ['全案履約完成結案報告', '成果驗收清冊', '智慧財產權與資產切結書'],
-        penaltyTerms: '逾期未完成結案驗收按本案合約總價千分之三計罰，機關得逕行解約並沒收履約保證金',
-        clauseReference: '參照專案服務議定書「115/12/31 全案履約完成條款」'
-      },
-      {
         keyword: '計畫書',
+        stage: '啟動籌備',
         defaultOffset: 30,
+        dayType: 'calendar',
         title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}專案詳細執行計畫書 (PEP)`,
         deliverables: ['專案詳細執行計畫書 (PEP)', '專案時程甘特圖', '品質管理與風險因應計畫'],
         penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
         clauseReference: '參照工作說明書 (SOW) 第 3.1 節「履約管理與計畫書提送」'
       },
       {
+        keyword: '需求',
+        stage: '需求分析',
+        defaultOffset: 45,
+        dayType: 'calendar',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}需求規格確認書 (SRS) 與訪談紀錄`,
+        deliverables: ['需求規格確認書 (SRS)', '使用者訪談確認紀錄表', '功能架構藍圖清冊'],
+        penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
+        clauseReference: '參照需求說明書第 4.1 條「需求分析規範」'
+      },
+      {
         keyword: '架構',
+        stage: '系統設計',
         defaultOffset: 60,
-        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}系統架構與詳細設計規格書`,
+        dayType: 'calendar',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}系統架構與詳細設計規格書 (SAD)`,
         deliverables: ['系統架構設計說明書 (SAD)', '資料庫 Schema 規格書', 'RESTful API 介面定義規格檔'],
         penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
         clauseReference: '參照標案需求說明書 (RFP) 第 4.2 條「系統設計規範」'
       },
       {
+        keyword: '授權',
+        stage: '系統開發',
+        defaultOffset: 75,
+        dayType: 'calendar',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}授權與資安暨教育訓練交付`,
+        deliverables: ['軟體授權證明書', '資訊安全防護計畫書', '教育訓練教材及簽到表'],
+        penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
+        clauseReference: '參照專案服務議定書「軟體授權與教育訓練履約規定」'
+      },
+      {
+        keyword: '期中',
+        stage: '期中審查',
+        defaultOffset: 90,
+        dayType: 'calendar',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}期中工作進度報告與原型展示`,
+        deliverables: ['期中成果報告書', '期中系統原型展示紀錄', '待辦改善事項追蹤表'],
+        penaltyTerms: '逾期每日按本案合約總價千分之一計罰違約金',
+        clauseReference: '參照契約第 7 條「期中查核條款」'
+      },
+      {
         keyword: '測試',
+        stage: '測試驗收',
         defaultOffset: 120,
+        dayType: 'calendar',
         title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}系統開發與單元/整合測試報告`,
         deliverables: ['系統測試案例與執行結果報告', '源碼掃描與弱點修補報告', '壓力與效能測試結果紀錄'],
         penaltyTerms: '逾期每日按本案合約總價千分之二計罰違約金，累計罰款上限為合約總價 20%',
         clauseReference: '參照專案合約條文第 8 條第 3 項「測試與品質驗收」'
       },
       {
+        keyword: '外撥',
+        stage: '測試驗收',
+        defaultOffset: 150,
+        dayType: 'calendar',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}AI 語音服務成果與統計報告`,
+        deliverables: ['服務執行統計報表', 'AI 語音錄音與逐字稿抽樣檔', '維運作業標準手冊'],
+        penaltyTerms: '逾期每日按本案合約總價千分之二計罰違約金',
+        clauseReference: '參照專案服務議定書「語音服務成果查核規定」'
+      },
+      {
         keyword: '滲透',
+        stage: '測試驗收',
         defaultOffset: 180,
+        dayType: 'calendar',
         title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}資安資通安全與滲透測試報告`,
-        deliverables: ['第三方資安滲透測試報告', '弱點複測與修補對照表'],
+        deliverables: ['第三方資安滲透測試報告', '弱點複測與修補對照表', 'APP 資安檢測合格證明書'],
         penaltyTerms: '逾期未修補高風險弱點者，按每日新台幣五千元累計計罰',
         clauseReference: '參照國家資通安全防護規範第 12 條「資安檢測」'
+      },
+      {
+        keyword: '全案',
+        stage: '期末結案',
+        defaultOffset: 210,
+        dayType: 'calendar',
+        title: `${fileName ? fileName.replace(/\.[^/.]+$/, '') + ' - ' : ''}全案履約完成與結案驗收`,
+        deliverables: ['全案履約完成結案報告', '成果驗收清冊', '系統安裝部署手冊與原始碼光碟', '智慧財產權與保固切結書'],
+        penaltyTerms: '逾期未完成結案驗收按本案合約總價千分之三計罰，機關得逕行解約並沒收履約保證金',
+        clauseReference: '參照專案服務議定書「全案履約完成與驗收條款」'
       }
     ];
 
@@ -371,33 +549,45 @@ ${text.substring(0, 18000)}
 
     predefinedTemplates.forEach((template, idx) => {
       const matchIndex = lines.findIndex(l => l && (l.includes(template.keyword) || l.includes(template.title)));
-      
+
       if (matchIndex === -1 && cleanText.length > 0 && !cleanText.includes(template.keyword)) {
         return;
       }
-      
+
       const matchingLine = matchIndex !== -1 ? lines[matchIndex] : '';
       let dayOffset = template.defaultOffset;
-      let confidenceScore = 80;
+      let dayType = template.dayType;
+      let confidenceScore = 82;
 
       if (cleanText) {
         const keywordIdx = cleanText.indexOf(template.keyword);
-        const contextRadius = 300;
+        const contextRadius = 400;
         let contextText = cleanText;
-        
+
         if (keywordIdx >= 0) {
           const start = Math.max(0, keywordIdx - contextRadius);
           const end = Math.min(cleanText.length, keywordIdx + contextRadius);
           contextText = cleanText.substring(start, end);
         }
 
-        const offsetReg = /(?:D\+|第|簽約後)\s*(\d+)\s*(?:日|天|個月)/g;
+        // Regex for Taiwan procurement day calculation
+        const offsetReg = /(?:決標|簽約|開工|訂購|D\+)[次日\s]*[起計至內]*\s*([0-9０-９一二三四五六七八九十百]+)\s*(個?日曆天|個?工作天|日|天|個月)/g;
         let match;
         while ((match = offsetReg.exec(contextText)) !== null) {
-          const parsedDays = parseInt(match[1], 10);
-          if (!isNaN(parsedDays) && parsedDays > 0) {
+          const rawNum = match[1];
+          let parsedDays = parseInt(rawNum, 10);
+          if (isNaN(parsedDays)) {
+            // Simple Chinese numeral conversion
+            const numMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10, '十五': 15, '二十': 20, '三十': 30, '六十': 60, '九十': 90 };
+            parsedDays = numMap[rawNum] || 30;
+          }
+
+          if (match[2].includes('月')) parsedDays *= 30;
+
+          if (parsedDays > 0) {
             dayOffset = parsedDays;
-            confidenceScore = Math.min(95, confidenceScore + 12);
+            dayType = match[2].includes('工作天') ? 'workday' : 'calendar';
+            confidenceScore = Math.min(96, confidenceScore + 12);
             break;
           }
         }
@@ -405,27 +595,31 @@ ${text.substring(0, 18000)}
 
       extractedItems.push({
         id: `ext-rule-${Date.now()}-${idx + 1}`,
-        originalText: matchingLine || `⚡ 規則比對: 廠商應於 D+${dayOffset} 日內交付【${template.title}】`,
+        originalText: matchingLine || `⚡ 啟發式規則: 廠商應於 D+${dayOffset} ${dayType === 'workday' ? '工作天' : '日曆天'}內交付【${template.title}】`,
         title: template.title,
+        stage: template.stage,
         dayOffset: dayOffset,
-        matchedDate: template.matchedDate,
+        dayType: dayType,
+        matchedDate: template.matchedDate || '',
         deliverables: template.deliverables,
         penaltyTerms: template.penaltyTerms,
         clauseReference: template.clauseReference,
-        location: matchIndex !== -1 ? `第 ${matchIndex + 1} 行` : '文件內文',
+        location: matchIndex !== -1 ? `第 ${matchIndex + 1} 行` : '合約內文條款',
         confidence: confidenceScore,
         source: 'rule_heuristic',
         selected: true
       });
     });
 
-    if (extractedItems.length === 0) {
+    if (extractedItems.length === 0 && cleanText.length === 0) {
       predefinedTemplates.forEach((template, idx) => {
         extractedItems.push({
           id: `ext-rule-base-${Date.now()}-${idx + 1}`,
-          originalText: `⚡ 合約基準範本: 廠商應於 D+${template.defaultOffset} 日內交付【${template.title}】`,
+          originalText: `⚡ 合約基準範本: 廠商應於 D+${template.defaultOffset} ${template.dayType === 'workday' ? '工作天' : '日曆天'}內交付【${template.title}】`,
           title: template.title,
+          stage: template.stage,
           dayOffset: template.defaultOffset,
+          dayType: template.dayType,
           deliverables: template.deliverables,
           penaltyTerms: template.penaltyTerms,
           clauseReference: template.clauseReference,
@@ -437,6 +631,7 @@ ${text.substring(0, 18000)}
       });
     }
 
+    extractedItems.sort((a, b) => (a.dayOffset ?? 0) - (b.dayOffset ?? 0));
     return extractedItems;
   }
 }

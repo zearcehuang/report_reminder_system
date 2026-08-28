@@ -133,9 +133,11 @@ export interface ExtractedMilestone {
   id: string;
   originalText: string;
   title: string;
+  stage?: string;
   matchedDate: string;
   date?: string;
   dayOffset: number;
+  dayType?: 'calendar' | 'workday';
   owners: string[];
   selected: boolean;
   deliverables?: string[];
