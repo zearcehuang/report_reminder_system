@@ -7,6 +7,7 @@
     "start": "node server.js",
     "seed": "node backend/services/seedService.js",
     "test": "node test_scenarios.js",
+    "check:secrets": "node scripts/check_secrets.js",
     "dev:frontend": "cd frontend && npm run dev",
     "build:frontend": "cd frontend && npm run build"
   },
