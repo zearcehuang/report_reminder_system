@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const { readJsonSync, writeJsonSync } = require('../services/jsonStore');
-const { requirePermission } = require('../middleware/authMiddleware');
+const { requirePermission, requireAuth } = require('../middleware/authMiddleware');
 const { validateBody, schemas } = require('../middleware/validation');
 
 const router = express.Router();
@@ -9,7 +9,7 @@ const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const ROLES_FILE = path.join(DATA_DIR, 'roles.json');
 
 // Get all roles
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
   const roles = readJsonSync(ROLES_FILE, []);
   res.json(roles);
 });
@@ -35,15 +35,20 @@ router.post('/', requirePermission('system:admin'), validateBody(schemas.createR
   res.json({ success: true, role: newRole });
 });
 
-// Update role
+// Update role (Whitelisted fields to prevent mass-assignment)
 router.put('/:id', requirePermission('system:admin'), (req, res) => {
   const roles = readJsonSync(ROLES_FILE, []);
   const index = roles.findIndex(r => r.id === req.params.id);
   if (index === -1) return res.status(404).json({ success: false, error: 'Role not found' });
 
+  const allowedUpdates = {};
+  if (req.body.name !== undefined) allowedUpdates.name = req.body.name.trim();
+  if (req.body.description !== undefined) allowedUpdates.description = req.body.description;
+  if (Array.isArray(req.body.permissions)) allowedUpdates.permissions = req.body.permissions;
+
   roles[index] = {
     ...roles[index],
-    ...req.body,
+    ...allowedUpdates,
     updatedAt: new Date().toISOString()
   };
   writeJsonSync(ROLES_FILE, roles);

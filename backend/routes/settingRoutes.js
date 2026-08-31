@@ -36,15 +36,15 @@ router.post('/', requireRole(['Admin', 'PM']), asyncHandler(async (req, res) => 
   });
 }));
 
-// GET /api/settings/gemini-models - Fetch available generation models from Google API
-router.get('/gemini-models', asyncHandler(async (req, res) => {
+// GET /api/settings/gemini-models - Fetch available generation models from Google API (requires Admin or PM)
+router.get('/gemini-models', requireRole(['Admin', 'PM']), asyncHandler(async (req, res) => {
   const candidateKey = req.query.apiKey || '';
   const result = await settingService.fetchAvailableGeminiModels(candidateKey);
   res.json(result);
 }));
 
-// POST /api/settings/test-gemini - Test connection to Gemini API
-router.post('/test-gemini', asyncHandler(async (req, res) => {
+// POST /api/settings/test-gemini - Test connection to Gemini API (requires Admin or PM)
+router.post('/test-gemini', requireRole(['Admin', 'PM']), asyncHandler(async (req, res) => {
   const { apiKey, model } = req.body || {};
   const result = await settingService.testGeminiConnection(apiKey, model);
   res.json(result);

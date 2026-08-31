@@ -4,7 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const { readJsonSync, writeJsonSync } = require('../services/jsonStore');
 const { parseOutlookCsvText } = require('../services/csvParser');
-const { requirePermission } = require('../middleware/authMiddleware');
+const { requirePermission, requireAuth } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
@@ -14,23 +14,37 @@ const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
+    let originalName = file.originalname;
     try {
-      file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      originalName = Buffer.from(originalName, 'latin1').toString('utf8');
     } catch (e) {}
+    const ext = path.extname(originalName).toLowerCase();
+    const baseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_\u4e00-\u9fa5\-\.]/g, '_');
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+    cb(null, `${uniqueSuffix}-${baseName}${ext}`);
   }
 });
-const upload = multer({ storage });
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!['.csv', '.txt'].includes(ext)) {
+      return cb(new Error('僅支援 .csv 或 .txt 通訊錄檔案'), false);
+    }
+    cb(null, true);
+  }
+});
 
 // Get all contacts
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
   const contacts = readJsonSync(CONTACTS_FILE, []);
   res.json(contacts);
 });
 
 // Search contacts
-router.get('/search', (req, res) => {
+router.get('/search', requireAuth, (req, res) => {
   const contacts = readJsonSync(CONTACTS_FILE, []);
   const q = (req.query.q || '').toLowerCase();
   const filtered = contacts.filter(c => 

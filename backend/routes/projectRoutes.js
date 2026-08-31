@@ -7,7 +7,7 @@ const { logError } = require('../services/errorLogger');
 const router = express.Router();
 
 // Get all projects
-router.get('/', (req, res) => {
+router.get('/', requirePermission('projects:read'), (req, res) => {
   try {
     const projects = projectService.getAllProjects();
     res.json(projects);
@@ -93,7 +93,7 @@ router.post('/:projectId/rules/batch-delete', requirePermission('rules:write'), 
 });
 
 // Get project schedules
-router.get('/:id/schedules', (req, res) => {
+router.get('/:id/schedules', requirePermission('projects:read'), (req, res) => {
   try {
     const result = projectService.getProjectSchedules(req.params.id);
     if (!result) return res.status(404).json({ error: 'Project not found' });
@@ -105,7 +105,7 @@ router.get('/:id/schedules', (req, res) => {
 });
 
 // Get rules for project
-router.get('/:id/rules', (req, res) => {
+router.get('/:id/rules', requirePermission('projects:read'), (req, res) => {
   try {
     const rules = projectService.getProjectRules(req.params.id);
     if (!rules) return res.status(404).json({ error: 'Project not found' });

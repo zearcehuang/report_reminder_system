@@ -11,10 +11,13 @@ const ROLES_FILE = path.join(DATA_DIR, 'roles.json');
 // Initialize JWT Secret dynamically if not provided in environment variables
 let JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  // Generate a random 256-bit (32 byte) key and encode as hex
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL SECURITY ERROR: JWT_SECRET must be set in environment variables in production mode!');
+  }
+  // Generate a random 256-bit (32 byte) key and encode as hex for development
   JWT_SECRET = crypto.randomBytes(32).toString('hex');
   console.warn(`⚠️ [SECURITY] JWT_SECRET is not set in environment variables.`);
-  console.warn(`⚠️ [SECURITY] Using dynamically generated secure random key for this session.`);
+  console.warn(`⚠️ [SECURITY] Using dynamically generated secure random key for development session.`);
   console.warn(`⚠️ [SECURITY] NOTE: Active sessions will be invalidated upon server restart! Set JWT_SECRET in .env to prevent this.`);
 }
 
@@ -124,9 +127,28 @@ function authenticateUser(req, res, next) {
   next();
 }
 
+function requireAuth(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: '未授權存取 (Authentication Required)',
+      message: '請先登入以取得存取權限'
+    });
+  }
+  next();
+}
+
 function requireRole(allowedRoles = []) {
   return (req, res, next) => {
-    const userRole = req.user ? req.user.role : 'Admin';
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: '未授權存取 (Authentication Required)',
+        message: '請先登入以取得存取權限'
+      });
+    }
+
+    const userRole = req.user.role;
 
     if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
       const errMsg = `當前角色 [${userRole}] 無存取權限，需要 [${allowedRoles.join(', ')}] 權限`;
@@ -143,7 +165,15 @@ function requireRole(allowedRoles = []) {
 
 function requirePermission(permissionCode) {
   return (req, res, next) => {
-    const userRole = req.user ? req.user.role : 'Admin';
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: '未授權存取 (Authentication Required)',
+        message: '請先登入以取得存取權限'
+      });
+    }
+
+    const userRole = req.user.role;
     const roles = getRoles();
     const roleObj = roles.find(r => r.name.toLowerCase() === userRole.toLowerCase());
 
@@ -169,6 +199,7 @@ module.exports = {
   generateToken,
   verifyToken,
   authenticateUser,
+  requireAuth,
   requireRole,
   requirePermission,
   invalidateCache() {}

@@ -1,8 +1,8 @@
 const express = require('express');
 const path = require('path');
-const { readJsonSync } = require('../services/jsonStore');
-const { verifyPassword } = require('../services/passwordService');
-const { generateToken } = require('../middleware/authMiddleware');
+const { readJsonSync, writeJsonSync } = require('../services/jsonStore');
+const { verifyPassword, hashPassword, sanitizeUser } = require('../services/passwordService');
+const { generateToken, requireAuth } = require('../middleware/authMiddleware');
 const { validateBody, schemas } = require('../middleware/validation');
 
 const router = express.Router();
@@ -13,54 +13,65 @@ const USERS_FILE = path.join(DATA_DIR, 'users.json');
 router.post('/login', validateBody(schemas.login), (req, res) => {
   const { email, password } = req.body;
   const users = readJsonSync(USERS_FILE, []);
-  const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
-  if (!user || !verifyPassword(password, user.password)) {
+  const userIndex = users.findIndex(u => u.email.toLowerCase() === (email || '').toLowerCase());
+  
+  if (userIndex === -1) {
+    return res.status(401).json({ success: false, message: '帳號或密碼錯誤 (Invalid email or password)' });
+  }
+
+  const user = users[userIndex];
+  if (!verifyPassword(password, user.password)) {
     return res.status(401).json({ success: false, message: '帳號或密碼錯誤 (Invalid email or password)' });
   }
   if (user.status === 'inactive') {
     return res.status(403).json({ success: false, message: '此帳號目前已停用，無法登入' });
   }
 
+  // Auto-upgrade legacy plaintext password if applicable
+  if (user.password && !user.password.includes(':')) {
+    users[userIndex].password = hashPassword(password);
+    writeJsonSync(USERS_FILE, users);
+  }
+
   const token = generateToken(user);
   res.json({
     success: true,
     token,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      department: user.department,
-      title: user.title,
-      status: user.status
-    }
+    user: sanitizeUser(user)
   });
 });
 
 // Current user profile
-router.get('/me', (req, res) => {
-  if (req.user) {
-    return res.json({ success: true, user: req.user });
-  }
+router.get('/me', requireAuth, (req, res) => {
   res.json({
     success: true,
-    user: {
-      id: 'usr-admin-1',
-      email: 'admin@company.com',
-      name: '系統最高管理員',
-      role: 'Admin',
-      department: '資訊管理處',
-      title: '資深系統管理員',
-      status: 'active'
-    }
+    user: sanitizeUser(req.user)
   });
 });
 
 // Sender Login Authentication Endpoint
 router.post('/sender-login', validateBody(schemas.senderLogin), (req, res) => {
   const { email, password, name } = req.body;
-  const senderName = name && name.trim() ? name.trim() : email.split('@')[0];
-  const token = `token-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const users = readJsonSync(USERS_FILE, []);
+  const existingUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+  if (existingUser) {
+    if (!verifyPassword(password, existingUser.password)) {
+      return res.status(401).json({ success: false, error: '寄件者密碼錯誤，請輸入正確的帳號密碼' });
+    }
+    if (existingUser.status === 'inactive') {
+      return res.status(403).json({ success: false, error: '此寄件者帳號已被停用' });
+    }
+  }
+
+  const senderName = name && name.trim() ? name.trim() : (existingUser ? existingUser.name : email.split('@')[0]);
+  const senderUser = existingUser || {
+    id: `sender-${Date.now()}`,
+    email,
+    name: senderName,
+    role: 'PM'
+  };
+  const token = generateToken(senderUser);
 
   res.json({
     success: true,

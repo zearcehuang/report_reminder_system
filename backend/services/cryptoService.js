@@ -9,11 +9,23 @@ const { logError } = require('./errorLogger');
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // 96 bits standard for GCM
 
+let cachedDevKey = null;
+
 /**
  * Derive a 32-byte encryption key from environment secret or system key
  */
 function getMasterKey() {
-  const secret = process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || 'report-reminder-default-secure-master-key-2026';
+  const secret = process.env.ENCRYPTION_KEY || process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL SECURITY ERROR: ENCRYPTION_KEY or JWT_SECRET must be set in production mode!');
+    }
+    if (!cachedDevKey) {
+      cachedDevKey = crypto.randomBytes(32);
+      console.warn(`⚠️ [SECURITY] Neither ENCRYPTION_KEY nor JWT_SECRET is set. Using dynamically generated secure random key for this development session.`);
+    }
+    return cachedDevKey;
+  }
   return crypto.createHash('sha256').update(secret).digest();
 }
 

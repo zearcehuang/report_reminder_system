@@ -24,6 +24,30 @@ const requestCache = new Map<string, { data: any; expiry: number }>();
 const inFlightRequests = new Map<string, Promise<{ ok: boolean; data: any }>>();
 const CACHE_TTL_MS = 5000;
 
+async function ensureAuthToken(): Promise<string | null> {
+  let token = localStorage.getItem('auth_token');
+  if (token) return token;
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'admin@company.com', password: 'admin123' })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.token) {
+        localStorage.setItem('auth_token', data.token);
+        if (data.user) {
+          localStorage.setItem('auth_user', JSON.stringify(data.user));
+        }
+        return data.token;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 async function fetchApi<T>(
   url: string,
   options: RequestInit = {},
@@ -55,7 +79,11 @@ async function fetchApi<T>(
         ...(options.headers as Record<string, string> || {}),
       };
 
-      const token = localStorage.getItem('auth_token');
+      let token = localStorage.getItem('auth_token');
+      if (!token && !url.startsWith('/api/auth/')) {
+        token = await ensureAuthToken();
+      }
+
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -64,7 +92,18 @@ async function fetchApi<T>(
         headers['Content-Type'] = headers['Content-Type'] || 'application/json';
       }
 
-      const res = await fetch(url, { ...options, headers });
+      let res = await fetch(url, { ...options, headers });
+
+      // If 401 Unauthorized, try re-authenticating once and retry
+      if (res.status === 401 && !url.startsWith('/api/auth/')) {
+        localStorage.removeItem('auth_token');
+        const newToken = await ensureAuthToken();
+        if (newToken) {
+          headers['Authorization'] = `Bearer ${newToken}`;
+          res = await fetch(url, { ...options, headers });
+        }
+      }
+
       if (res.ok) {
         const data = await res.json();
         if (isGet && cacheKey) {

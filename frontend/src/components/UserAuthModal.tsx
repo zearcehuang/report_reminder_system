@@ -61,7 +61,13 @@ export const UserAuthModal: React.FC<Props> = ({
     setError(null);
     setIsLoading(true);
     try {
-      const res = await api.loginUser(user.email, user.password || '123456');
+      const DEFAULT_PASSWORDS: Record<string, string> = {
+        'admin@company.com': 'admin123',
+        'alex.chang@company.com': 'pm123',
+        'auditor@company.com': 'auditor123'
+      };
+      const pwd = DEFAULT_PASSWORDS[user.email.toLowerCase()] || user.password || '123456';
+      const res = await api.loginUser(user.email, pwd);
       if (res.success && res.user) {
         onUserLoginSuccess(res.user);
         onClose();

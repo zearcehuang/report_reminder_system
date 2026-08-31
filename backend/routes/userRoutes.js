@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const { readJsonSync, writeJsonSync } = require('../services/jsonStore');
-const { hashPassword } = require('../services/passwordService');
+const { hashPassword, sanitizeUser, sanitizeUsers } = require('../services/passwordService');
 const { requirePermission } = require('../middleware/authMiddleware');
 const { validateBody, schemas } = require('../middleware/validation');
 
@@ -10,10 +10,10 @@ const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
 
-// Get all users
-router.get('/', (req, res) => {
+// Get all users (Restricted to Admin, returns sanitized DTOs without password)
+router.get('/', requirePermission('system:admin'), (req, res) => {
   const users = readJsonSync(USERS_FILE, []);
-  res.json(users);
+  res.json(sanitizeUsers(users));
 });
 
 // Create user
@@ -38,7 +38,7 @@ router.post('/', requirePermission('system:admin'), validateBody(schemas.createU
 
   users.push(newUser);
   writeJsonSync(USERS_FILE, users);
-  res.json({ success: true, user: newUser });
+  res.json({ success: true, user: sanitizeUser(newUser) });
 });
 
 // Update user (Whitelisted fields via validation middleware to prevent mass-assignment)
@@ -61,7 +61,7 @@ router.put('/:id', requirePermission('system:admin'), validateBody(schemas.updat
     updatedAt: new Date().toISOString()
   };
   writeJsonSync(USERS_FILE, users);
-  res.json({ success: true, user: users[index] });
+  res.json({ success: true, user: sanitizeUser(users[index]) });
 });
 
 // Delete user
@@ -106,7 +106,7 @@ router.post('/import-contacts', requirePermission('system:admin'), (req, res) =>
   });
 
   if (addedCount > 0) writeJsonSync(USERS_FILE, users);
-  res.json({ success: true, addedCount, users });
+  res.json({ success: true, addedCount, users: sanitizeUsers(users) });
 });
 
 module.exports = router;

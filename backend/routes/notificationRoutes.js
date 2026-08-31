@@ -1,19 +1,20 @@
 const express = require('express');
 const path = require('path');
 const { readJsonSync, writeJsonSync } = require('../services/jsonStore');
+const { requirePermission, requireAuth, verifyToken } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const LOGS_FILE = path.join(DATA_DIR, 'notification_logs.json');
 
 // Get notification logs
-router.get('/logs', (req, res) => {
+router.get('/logs', requireAuth, (req, res) => {
   const logs = readJsonSync(LOGS_FILE, []);
   res.json(logs);
 });
 
-// Clear notification logs
-router.post('/logs/clear', (req, res) => {
+// Clear notification logs (Admin only)
+router.post('/logs/clear', requirePermission('system:admin'), (req, res) => {
   writeJsonSync(LOGS_FILE, []);
   res.json({ success: true, message: '通知發送日誌已成功清空' });
 });
@@ -38,6 +39,14 @@ const handleOutlookMeetingDispatch = async (req, res) => {
     return res.status(401).json({
       success: false,
       error: '⚠️ 發布失敗：發出前必須先行登入要發布的寄件者帳號，以確保能真正發出 Outlook 會議通知與預約信件！'
+    });
+  }
+
+  const verifiedSender = verifyToken(senderAuthToken);
+  if (!verifiedSender) {
+    return res.status(401).json({
+      success: false,
+      error: '⚠️ 寄件者憑證無效或已過期，請重新登入寄件者帳號'
     });
   }
 

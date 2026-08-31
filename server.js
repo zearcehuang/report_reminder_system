@@ -10,9 +10,26 @@ const PORT = process.env.PORT || 5000;
 
 // Middlewares
 const rateLimiter = require('./backend/middleware/rateLimiter');
-const { authenticateUser } = require('./backend/middleware/authMiddleware');
+const { authRateLimiter } = require('./backend/middleware/rateLimiter');
+const { authenticateUser, requirePermission } = require('./backend/middleware/authMiddleware');
 const { logError, getErrorLogs } = require('./backend/services/errorLogger');
 const { initSeedData } = require('./backend/services/seedService');
+
+// HTTP Security Headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://generativelanguage.googleapis.com https://api.openai.com http://localhost:* http://127.0.0.1:*"
+  );
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 
 // Express Settings
 app.use(compression());
@@ -60,6 +77,8 @@ const createSchedulerRouter = require('./backend/routes/schedulerRoutes');
 app.use('/api/projects', projectRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/auth/login', authRateLimiter);
+app.use('/api/auth/sender-login', authRateLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/contacts', contactRoutes);
@@ -69,8 +88,8 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/scheduler', createSchedulerRouter(schedulerService));
 
-// Additional error log API endpoint
-app.get('/api/logs/errors', (req, res) => {
+// Additional error log API endpoint (Protected, Admin only)
+app.get('/api/logs/errors', requirePermission('system:admin'), (req, res) => {
   res.json({ logs: getErrorLogs() });
 });
 
