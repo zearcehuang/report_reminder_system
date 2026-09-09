@@ -1,0 +1,13 @@
+profile: report-reminder
+source: frontend/src/index.css
+tokens:
+  paper: "#f8fafc"
+  paper-2: "#ffffff"
+  ink: "#0f172a"
+  muted: "#475569"
+  soft: "#94a3b8"
+  rule: "rgba(15, 23, 42, 0.12)"
+  rule-solid: "#cbd5e1"
+  accent: "#4f46e5"
+  accent-tint: "rgba(79, 70, 229, 0.08)"
+  link: "#0284c7"

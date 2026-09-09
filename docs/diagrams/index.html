@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系統架構與流程圖總覽 — 專案履約報告提醒系統</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f8fafc;
+      --paper-2: #ffffff;
+      --ink: #0f172a;
+      --muted: #475569;
+      --soft: #94a3b8;
+      --rule: rgba(15, 23, 42, 0.12);
+      --accent: #4f46e5;
+      --accent-tint: rgba(79, 70, 229, 0.08);
+      --link: #0284c7;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--paper);
+      color: var(--ink);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      padding: 2.5rem 1.5rem 4rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 960px;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .eyebrow {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 2.5rem;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .nav-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-bottom: 2rem;
+    }
+
+    .tab-btn {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.6rem 1.25rem;
+      border-radius: 6px;
+      border: 1px solid var(--rule);
+      background: var(--paper-2);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tab-btn:hover {
+      color: var(--ink);
+      border-color: var(--accent);
+      background: #ffffff;
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+      box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+    }
+
+    .iframe-wrapper {
+      width: 100%;
+      height: 980px;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, 0.05);
+      overflow: hidden;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    footer {
+      margin-top: 2rem;
+      border-top: 1px solid var(--rule);
+      padding-top: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--soft);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <p class="eyebrow">DIAGRAM DESIGN GALLERY</p>
+      <h1>專案履約報告提醒系統 — 架構與流程圖總覽</h1>
+      <p class="subtitle">由 Diagram Design 引擎依專案品牌調性（Indigo & Slate）精心生成的出版級系統圖表。</p>
+    </header>
+
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('system-architecture.html', this)">
+        🏛️ 系統架構圖 (Architecture)
+      </button>
+      <button class="tab-btn" onclick="switchTab('system-flowchart.html', this)">
+        🔄 系統流程圖 (Flowchart)
+      </button>
+      <a class="tab-btn" id="open-standalone" href="system-architecture.html" target="_blank">
+        ↗️ 獨立分頁開啟
+      </a>
+    </div>
+
+    <div class="iframe-wrapper">
+      <iframe id="diagram-frame" src="system-architecture.html" title="系統圖表視窗"></iframe>
+    </div>
+
+    <footer>
+      <span>REPORT SUBMISSION REMINDER SYSTEM · DIAGRAMS v2.5</span>
+      <span>GENERATED VIA DIAGRAM-DESIGN</span>
+    </footer>
+  </div>
+
+  <script>
+    function switchTab(url, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('diagram-frame').src = url;
+      document.getElementById('open-standalone').href = url;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系統流程圖 (System Flowchart) — 專案履約報告提醒系統</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f8fafc;
+      --paper-2: #ffffff;
+      --ink: #0f172a;
+      --muted: #475569;
+      --soft: #94a3b8;
+      --rule: rgba(15, 23, 42, 0.12);
+      --rule-solid: #cbd5e1;
+      --accent: #4f46e5;
+      --accent-tint: rgba(79, 70, 229, 0.08);
+      --link: #0284c7;
+      --success: #059669;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--paper);
+      color: var(--ink);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 2.5rem 1.5rem 4rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 860px;
+    }
+
+    header {
+      margin-bottom: 2rem;
+    }
+
+    .eyebrow {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 2.35rem;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      margin-bottom: 0.4rem;
+    }
+
+    .subtitle {
+      font-size: 0.95rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .diagram-viewport {
+      width: 100%;
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      overflow-x: auto;
+      margin-bottom: 2rem;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-width: 720px;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr 0.95fr;
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    @media (max-width: 800px) {
+      .cards-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      padding: 1.35rem;
+    }
+
+    .card-eyebrow {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .card-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .card-dot.accent { background: var(--accent); }
+    .card-dot.link { background: var(--link); }
+    .card-dot.ink { background: var(--ink); }
+
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .card ul {
+      list-style: none;
+    }
+
+    .card li {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.6;
+      position: relative;
+      padding-left: 1.1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .card li::before {
+      content: "—";
+      position: absolute;
+      left: 0;
+      color: var(--soft);
+    }
+
+    footer {
+      border-top: 1px solid var(--rule);
+      padding-top: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--soft);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <p class="eyebrow">DECISION & EXECUTION PIPELINE</p>
+      <h1>履約里程碑推算與預警派發 — 系統流程圖</h1>
+      <p class="subtitle">端對端業務流程：涵蓋開工日配置、Gemini 3.7 五維度合約萃取、DGPA 避假推算、定時排程稽核與多通道發布。</p>
+    </header>
+
+    <div class="diagram-viewport">
+      <svg viewBox="0 0 760 960" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#4f46e5"/>
+          </marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#0284c7"/>
+          </marker>
+        </defs>
+
+        <!-- Canvas Background -->
+        <rect width="100%" height="100%" fill="#ffffff"/>
+
+        <!-- ==================== CONNECTORS & ARROWS ==================== -->
+        <!-- 1. Start -> Upload Step -->
+        <line x1="380" y1="76" x2="380" y2="108" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- 2. Upload Step -> Decision 1 -->
+        <line x1="380" y1="172" x2="380" y2="204" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- 3. Decision 1 -> Branch YES (Right then Down) -->
+        <path d="M 488,244 H 568 Q 576,244 576,252 V 300" fill="none" stroke="#4f46e5" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <rect x="496" y="232" width="36" height="12" rx="2" fill="#ffffff"/>
+        <text x="514" y="241" fill="#4f46e5" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="600">YES</text>
+
+        <!-- 4. Decision 1 -> Branch NO (Left then Down) -->
+        <path d="M 272,244 H 192 Q 184,244 184,252 V 300" fill="none" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="228" y="232" width="32" height="12" rx="2" fill="#ffffff"/>
+        <text x="244" y="241" fill="#475569" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">NO</text>
+
+        <!-- 5. Rejoin from Branch YES to Merge Dot -->
+        <path d="M 576,356 V 396 Q 576,404 568,404 H 388" fill="none" stroke="#4f46e5" stroke-width="1.2"/>
+
+        <!-- 6. Rejoin from Branch NO to Merge Dot -->
+        <path d="M 184,356 V 396 Q 184,404 192,404 H 372" fill="none" stroke="#475569" stroke-width="1.2"/>
+
+        <!-- Merge Dot -->
+        <circle cx="380" cy="404" r="4" fill="#0f172a"/>
+
+        <!-- 7. Merge Dot -> DGPA Holiday Shift (Focal) -->
+        <line x1="380" y1="408" x2="380" y2="436" stroke="#4f46e5" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+        <!-- 8. DGPA Holiday Shift -> Timeline Persistence -->
+        <line x1="380" y1="508" x2="380" y2="536" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- 9. Timeline Persistence -> Daily Scheduler -->
+        <line x1="380" y1="592" x2="380" y2="620" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- 10. Daily Scheduler -> Decision 2 -->
+        <line x1="380" y1="684" x2="380" y2="712" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- 11. Decision 2 -> Branch YES (Right then Down to Dispatch) -->
+        <path d="M 488,752 H 568 Q 576,752 576,760 V 792" fill="none" stroke="#4f46e5" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <rect x="496" y="740" width="36" height="12" rx="2" fill="#ffffff"/>
+        <text x="514" y="749" fill="#4f46e5" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="600">YES</text>
+
+        <!-- 12. Decision 2 -> Branch NO (Left then Down to Standby) -->
+        <path d="M 272,752 H 192 Q 184,752 184,760 V 792" fill="none" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="228" y="740" width="32" height="12" rx="2" fill="#ffffff"/>
+        <text x="244" y="749" fill="#475569" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">NO</text>
+
+        <!-- 13. Rejoin from Dispatch & Standby to End -->
+        <path d="M 576,848 V 872 Q 576,880 568,880 H 488" fill="none" stroke="#4f46e5" stroke-width="1.2"/>
+        <path d="M 184,848 V 872 Q 184,880 192,880 H 272" fill="none" stroke="#475569" stroke-width="1.2"/>
+        <line x1="380" y1="880" x2="380" y2="880" stroke="#475569" stroke-width="1.2"/>
+
+        <!-- ==================== FLOWCHART NODES ==================== -->
+        <!-- Node 1: Start (Oval) -->
+        <rect x="270" y="36" width="220" height="40" rx="20" fill="#ffffff" stroke="#0f172a" stroke-width="1.2"/>
+        <text x="380" y="60" fill="#0f172a" font-size="12" font-weight="600" text-anchor="middle">專案建置與開工日 (D-Day) 啟動</text>
+
+        <!-- Node 2: Step 1 (Rect) -->
+        <rect x="236" y="108" width="288" height="64" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+        <rect x="244" y="114" width="76" height="12" rx="2" fill="transparent" stroke="rgba(15,23,42,0.40)" stroke-width="0.8"/>
+        <text x="282" y="123" fill="#475569" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">AI EXTRACT</text>
+        <text x="380" y="142" fill="#0f172a" font-size="12" font-weight="600" text-anchor="middle">合約上傳與 Gemini 3.7 五維度解析</text>
+        <text x="380" y="158" fill="#475569" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">PDF · Word (.docx) · 結構化欄位萃取</text>
+
+        <!-- Node 3: Decision 1 (Diamond) -->
+        <polygon points="380,204 488,244 380,284 272,244" fill="#ffffff" stroke="#0f172a" stroke-width="1.2"/>
+        <text x="380" y="240" fill="#0f172a" font-size="11" font-weight="600" text-anchor="middle">是否含 D+N 相對</text>
+        <text x="380" y="254" fill="#0f172a" font-size="11" font-weight="600" text-anchor="middle">履約天數規則？</text>
+
+        <!-- Node 4A: Branch YES Step (Rect) -->
+        <rect x="476" y="300" width="200" height="56" rx="6" fill="rgba(79,70,229,0.06)" stroke="#4f46e5" stroke-width="1"/>
+        <text x="576" y="326" fill="#0f172a" font-size="11" font-weight="600" text-anchor="middle">提取 D+N 偏移天數</text>
+        <text x="576" y="342" fill="#4f46e5" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">dayOffset = N · 初步死線推算</text>
+
+        <!-- Node 4B: Branch NO Step (Rect) -->
+        <rect x="84" y="300" width="200" height="56" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+        <text x="184" y="326" fill="#0f172a" font-size="11" font-weight="600" text-anchor="middle">採用具體絕對死線</text>
+        <text x="184" y="342" fill="#475569" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">explicitDeadlines = YYYY-MM-DD</text>
+
+        <!-- Node 5: Focal Step (Rect - DGPA Holiday Shift) -->
+        <rect x="220" y="436" width="320" height="72" rx="6" fill="rgba(79,70,229,0.08)" stroke="#4f46e5" stroke-width="1.2"/>
+        <rect x="228" y="442" width="104" height="12" rx="2" fill="#ffffff" stroke="rgba(79,70,229,0.40)" stroke-width="0.8"/>
+        <text x="280" y="451" fill="#4f46e5" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">FOCAL ALGORITHM</text>
+        <text x="380" y="474" fill="#0f172a" font-size="13" font-weight="700" text-anchor="middle">DGPA 國定假日避開與補班日精算</text>
+        <text x="380" y="492" fill="#475569" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">遇例假順延至下工作日 · 補班日視為有效工作日</text>
+
+        <!-- Node 6: Timeline & Persistence (Rect) -->
+        <rect x="236" y="536" width="288" height="56" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+        <text x="380" y="560" fill="#0f172a" font-size="12" font-weight="600" text-anchor="middle">生成履約里程碑時間軸並持久化</text>
+        <text x="380" y="576" fill="#475569" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">寫入 data/projects.json (Promise 鎖安全防護)</text>
+
+        <!-- Node 7: Daily Scheduler Daemon (Rect) -->
+        <rect x="236" y="620" width="288" height="64" rx="6" fill="rgba(15,23,42,0.02)" stroke="#0f172a" stroke-width="1"/>
+        <rect x="244" y="626" width="92" height="12" rx="2" fill="transparent" stroke="rgba(15,23,42,0.40)" stroke-width="0.8"/>
+        <text x="290" y="635" fill="#475569" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">BACKGROUND CRON</text>
+        <text x="380" y="654" fill="#0f172a" font-size="12" font-weight="600" text-anchor="middle">每日 09:00 AM 背景定時自動掃描</text>
+        <text x="380" y="670" fill="#4f46e5" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">多重預警門檻比對 (提前 7, 3, 1 天與當天)</text>
+
+        <!-- Node 8: Decision 2 (Diamond) -->
+        <polygon points="380,712 488,752 380,792 272,752" fill="#ffffff" stroke="#0f172a" stroke-width="1.2"/>
+        <text x="380" y="748" fill="#0f172a" font-size="11" font-weight="600" text-anchor="middle">符合預警門檻</text>
+        <text x="380" y="762" fill="#0f172a" font-size="11" font-weight="600" text-anchor="middle">或處於逾期狀態？</text>
+
+        <!-- Node 9A: Multi-channel Dispatch (Rect) -->
+        <rect x="466" y="792" width="220" height="56" rx="6" fill="rgba(79,70,229,0.08)" stroke="#4f46e5" stroke-width="1.2"/>
+        <text x="576" y="816" fill="#0f172a" font-size="11" font-weight="600" text-anchor="middle">多通道提醒派發</text>
+        <text x="576" y="832" fill="#4f46e5" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Teams Webhook + Outlook .ics 預約</text>
+
+        <!-- Node 9B: Standby / Passive (Rect) -->
+        <rect x="74" y="792" width="220" height="56" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+        <text x="184" y="816" fill="#0f172a" font-size="11" font-weight="600" text-anchor="middle">維持常態待命</text>
+        <text x="184" y="832" fill="#475569" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">標記已繳交 / 紀錄至次日 09:00 稽核</text>
+
+        <!-- Node 10: End (Oval) -->
+        <rect x="255" y="860" width="250" height="40" rx="20" fill="#ffffff" stroke="#0f172a" stroke-width="1.2"/>
+        <text x="380" y="884" fill="#0f172a" font-size="12" font-weight="600" text-anchor="middle">記錄 Notification Logs · 完成履約稽核</text>
+
+        <!-- ==================== LEGEND STRIP ==================== -->
+        <line x1="40" y1="924" x2="720" y2="924" stroke="rgba(15,23,42,0.12)" stroke-width="0.8"/>
+        <text x="40" y="944" fill="#475569" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+
+        <rect x="110" y="936" width="18" height="10" rx="5" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+        <text x="134" y="944" fill="#475569" font-size="8" font-family="'Geist Mono', monospace">Start / End</text>
+
+        <rect x="220" y="936" width="14" height="10" rx="2" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+        <text x="240" y="944" fill="#475569" font-size="8" font-family="'Geist Mono', monospace">Processing Step</text>
+
+        <polygon points="345,941 352,936 359,941 352,946" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+        <text x="367" y="944" fill="#475569" font-size="8" font-family="'Geist Mono', monospace">Decision (Branch)</text>
+
+        <rect x="480" y="936" width="14" height="10" rx="2" fill="rgba(79,70,229,0.10)" stroke="#4f46e5" stroke-width="1.2"/>
+        <text x="500" y="944" fill="#4f46e5" font-size="8" font-family="'Geist Mono', monospace">Focal Operation (Accent)</text>
+
+        <circle cx="640" cy="941" r="3" fill="#0f172a"/>
+        <text x="650" y="944" fill="#475569" font-size="8" font-family="'Geist Mono', monospace">Merge Node</text>
+      </svg>
+    </div>
+
+    <div class="cards-grid">
+      <div class="card">
+        <p class="card-eyebrow">STAGE 1 · AI PARSING</p>
+        <div class="card-header">
+          <span class="card-dot accent"></span>
+          <h3>合約五維度結構化解析</h3>
+        </div>
+        <ul>
+          <li><strong>多模態輸入</strong>：支援純文字、PDF、Word (.docx) 及 CSV。</li>
+          <li><strong>五大維度抽取</strong>：里程碑名稱、D+N 天數、交付產出物、逾期違約罰則與合約條文索引。</li>
+          <li><strong>離線啟發式 Fallback</strong>：未填 API Key 或斷網時自動啟用正規表達式引擎。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <p class="card-eyebrow">STAGE 2 · CALENDAR LOGIC</p>
+        <div class="card-header">
+          <span class="card-dot ink"></span>
+          <h3>DGPA 國定假日與補班推算</h3>
+        </div>
+        <ul>
+          <li><strong>精確避假</strong>：履約死線遇例假日或國定假日，自動推延至次一有效工作日。</li>
+          <li><strong>補班日判定</strong>：精確識別行政院公告之週六彈性補班日，不誤延死線。</li>
+          <li><strong>提前預警計算</strong>：依專案配置之提前通知天數，回推預警啟動日。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <p class="card-eyebrow">STAGE 3 · DISPATCH & AUDIT</p>
+        <div class="card-header">
+          <span class="card-dot link"></span>
+          <h3>定時稽核與多通道發布</h3>
+        </div>
+        <ul>
+          <li><strong>每日 09:00 AM 常駐掃描</strong>：自動比對多重預警門檻 (7, 3, 1 天與當天)。</li>
+          <li><strong>正統 Outlook 預約</strong>：生成 iCalendar v2.0 .ics 檔與 Outlook Web 深層連結。</li>
+          <li><strong>Teams Webhook 推送</strong>：即時傳送 Adaptive 卡片與記錄通知 Log。</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>
+      <span>REPORT SUBMISSION REMINDER SYSTEM · FLOWCHART v2.5</span>
+      <span>GENERATED VIA DIAGRAM-DESIGN</span>
+    </footer>
+  </div>
+</body>
+</html>

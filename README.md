@@ -26,13 +26,17 @@
 - **一鍵連線診斷與即時 Health Check**：提供即時 Ping 測試，自動量測並回傳 API 響應延遲毫秒數 (`latencyMs`) 與模型狀態回報。
 - **Google 雲端可用模型即時探索**：支援動態向 Google Generative Language API 查詢當前 API Key 支援之最新模型清單，亦提供精選預設推薦清單。
 
-### 🛡️ 3. 多角色權限控管 (RBAC) 與安全防護機制 (`authMiddleware`)
+### 🛡️ 3. 多角色權限控管 (RBAC) 與安全防護機制 (`authMiddleware` & `api.ts`)
 - **三層級角色防護矩陣**：
   - 👑 **Admin (系統最高管理員)**：全權存取（專案管理、DGPA 行事曆維護、使用者與權限矩陣維護、系統設定與 API Key 配置、背景排程手動觸發與日誌清空）。
   - 💼 **PM (專案經理)**：專案營運權限（D-Day 修改、履約報告編輯/產出物維護、合約解析上傳、Outlook 邀請派發與標記繳交）。
   - 👁️ **Auditor (合約審核員/查核人員)**：純唯讀觀看權限（履約時間軸瀏覽、.ics 下載、排程發送日誌審視，自動停用所有寫入/刪除按鈕）。
+- **API 自動鑑權與 401 靜默補簽重試 (Auto-Authentication & Silent Retry)**：
+  - 前端於 `api.ts` 內建 `ensureAuthenticated` 機制。若本機缺少 Token，初次載入時自動以預設管理員 (`admin@company.com`) 完成背景鑑權，無縫讀取所有既有專案與排程。
+  - 當任何 API 呼叫遭遇 `401 Unauthorized`（如伺服器重啟產生新 Secret 或 Token 過期），系統自動觸發單次靜默補簽 (Silent Retry) 並重新發送該請求，徹底避免操作中斷。
 - **密碼 Hash 加密安全防護**：後端全面使用 HMAC-SHA256 加鹽雜湊演算法 (`hashPassword()`) 持久化使用者密碼，支援安全時序比對 (Timing-Safe Equal Comparison)。
 - **JWT Bearer Token 簽署**：登入驗證發放加密 Token，後端 Middleware 全面保護敏感 API 端點，`fetchApi` 自動注入 Token 授權標頭。
+- **敏感資訊與金鑰外洩自動防護機制 (`check_secrets.js`)**：內建 Pre-commit 敏感憑證自動掃描工具，防止 Google API Key、OpenAI 金鑰或私鑰等敏感機密遭意外 Commit。
 - **頂部動態 Role Badge 與帳號切換對話盒 (`UserAuthModal`)**：提供一鍵切換預設測試帳號與即時角色警示徽章。
 
 ### 👤 4. 帳號與權限矩陣維護中心 (`UserPermissionModal`)
@@ -79,10 +83,20 @@
 
 | 領域 | 技術與組件 |
 | :--- | :--- |
-| **前端 (Frontend)** | React 18 (`React.lazy` / Code-Splitting / `memo` / `useCallback`), TypeScript, Vite 5.x, Lucide React, Vanilla CSS (Design Tokens & CSS Variables), `useAppModals` 狀態管理 Hook, `fetchApi` 歸一化請求層 |
+| **前端 (Frontend)** | React 19 (`React.lazy` / Code-Splitting / `memo` / `useCallback`), TypeScript 5.7, Vite 5.x, Lucide React, Vanilla CSS (Design Tokens & CSS Variables), `useAppModals` 狀態管理 Hook, `fetchApi` 歸一化請求層 (含 401 靜默補簽重試與自動鑑權) |
 | **後端 (Backend)** | Node.js Express 4.x (模組化 `routes/`, `services/`, `middleware/`), `cryptoService` (AES-256-GCM), `compression` (Gzip HTTP 回應壓縮), `jsonwebtoken` (JWT 驗證), `joi` (Schema 輸入驗證), `asyncHandler` (全域 Async 錯誤捕獲), `passwordService` (HMAC-SHA256 密碼加鹽雜湊), `jsonStore` (structuredClone 深拷貝與 Promise 寫入鎖), `AiContractParser` (Gemini 3.7/3.6/2.5 多模型合約解析服務), `SchedulerService` (常駐背景定時排程器) |
 | **.NET 擴充相容層** | C# .NET API/Tests 相容層 (`ReportReminder.Api`, `ReportReminder.Tests`, `CancellationToken` & Compiled Regex 優化) |
 | **資料儲存 (Data Storage)** | JSON 檔案儲存庫與記憶體寫入快取 (位於 `./data/` 目錄，包含 `projects.json`, `holidays.json`, `contacts.json`, `notification_logs.json`, `users.json`, `roles.json`, `settings.json`, `errors.json`) |
+
+---
+
+## 🗺️ 系統視覺化圖表 (System Diagrams)
+
+系統提供由 `Diagram Design` 規格產出之高質感向量架構圖與流程圖，可於瀏覽器中直接檢視：
+
+- 🏛️ **[系統架構圖 (System Architecture)](docs/diagrams/system-architecture.html)**：呈現 React 19 前端、Express 後端服務引擎、Gemini 3.7 AI 與多模態派發之三層拓撲。
+- 🔄 **[系統流程圖 (System Flowchart)](docs/diagrams/system-flowchart.html)**：呈現開工日配置、合約五維度結構化解析、DGPA 避假演算法推算與定時預警派發之決策流程。
+- 🧭 **[圖表總覽入口 (Diagrams Gallery)](docs/diagrams/index.html)**：整合式雙頁籤互動檢視頁面。
 
 ---
 
@@ -175,7 +189,8 @@ npm start
 | 指令 | 說明 |
 | :--- | :--- |
 | `npm start` | 啟動 Node.js Express 後端伺服器與背景自動排程引擎 (`node server.js`) |
-| `npm test` | 執行 9 大全流程情境自動化驗證測試套件 (`node test_scenarios.js`) |
+| `npm test` | 執行 11 大全流程情境自動化驗證測試套件 (`node test_scenarios.js`) |
+| `npm run check:secrets` | 執行程式碼敏感資訊與金鑰外洩防護掃描 (`node scripts/check_secrets.js`) |
 | `node backend/tests/gemini_and_encryption.test.js` | 執行 Gemini AI 多模型、AES-256-GCM 加密與設定診斷測試套件 |
 | `npm run seed` | 初始化與重設專案測試資料庫 (`node backend/services/seedService.js`) |
 | `npm run dev:frontend` | 啟動 Vite 前端熱載入開發伺服器 (Port 3000) |
@@ -185,7 +200,7 @@ npm start
 
 ## 🧪 自動化測試套件 (Verification & Test Suites)
 
-系統內建兩大自動化測試套件，確保核心演算法、AI 辨識、加密演算法與 API 端點 100% 穩定：
+系統內建三大自動化測試與檢查機制，確保核心演算法、AI 辨識、加密演算法、API 端點與金鑰安全 100% 穩定：
 
 ### 1. Gemini AI & AES-256-GCM 專項測試套件 (`gemini_and_encryption.test.js`)
 驗證敏感金鑰加密與解密、金鑰遮罩、連線測試診斷、雲端模型探索與合約五維度解析：
@@ -202,14 +217,14 @@ node backend/tests/gemini_and_encryption.test.js
 - ✅ **離線啟發式 5 維度合約解析 Fallback 測試**
 - ✅ **多格式文件 (`docxExtractor`) 整合解析**
 
-### 2. 9 大全流程情境自動化驗證 (`test_scenarios.js`)
+### 2. 11 大全流程情境自動化驗證 (`test_scenarios.js`)
 伺服器啟動於 Port 5000 時執行端到端業務情境測試：
 ```bash
 # 確保 npm start 伺服器正在運行，接著在終端機執行：
 node test_scenarios.js
 ```
 測試情境涵蓋：
-1. **[Scenario 1] 標準專案創建、D+N 里程碑計算與 DGPA 國定假日/補班日順延**
+1. **[Scenario 1] 標準專案創建、10 階段履約里程碑計算與 DGPA 國定假日/補班日順延**
 2. **[Scenario 2] AI 5-Dimension 標案合約文件深度解析與互動預覽對話盒**
 3. **[Scenario 3] 寄件者身份驗證登入與正統 Outlook 會議邀請 (.ics) 派發**
 4. **[Scenario 4] 單一與批次專案刪除隔離測試**
@@ -218,6 +233,14 @@ node test_scenarios.js
 7. **[Scenario 7] 背景自動定時排程引擎即時掃描與 Notification Logs 驗證**
 8. **[Scenario 8] RBAC 登入驗證、JWT Bearer Token 與 3 層級角色權限保護驗證**
 9. **[Scenario 9] 使用者維護 CRUD、通訊錄匯入帳號與自訂角色權限矩陣驗證**
+10. **[Scenario 10] Gemini API Key AES-256-GCM 加密配置、金鑰遮罩與連線測試驗證**
+11. **[Scenario 11] 安全防護與弱點防禦測試套件 (無密碼外洩、401/403 阻擋、HTTP 安全標頭、非法副檔名阻擋)**
+
+### 3. 敏感資訊與金鑰外洩防護掃描 (`check_secrets.js`)
+於代碼 Commit 或部屬前執行，自動掃描原始碼中是否有誤留的 API Key、私鑰或敏感憑證：
+```bash
+npm run check:secrets
+```
 
 ---
 
@@ -335,10 +358,12 @@ node test_scenarios.js
 │   │   └── index.css             # 明亮質感 CSS Design System
 │   ├── package.json              # 前端 package.json
 │   └── vite.config.ts            # Vite 設定檔 (含 Proxy API 配置)
+├── scripts/                      # 自動化輔助與安全檢查腳本
+│   └── check_secrets.js          # Pre-commit 敏感資訊與金鑰外洩防護檢查
 ├── uploads/                      # 上傳之合約與標案文件暫存目錄
 ├── package.json                  # 專案根目錄 package.json
 ├── server.js                     # Express 後端主伺服器入口
-├── test_scenarios.js             # 9 大全流程情境整合驗證腳本
+├── test_scenarios.js             # 11 大全流程情境整合驗證腳本
 └── README.md                     # 專案說明文件
 ```
 
