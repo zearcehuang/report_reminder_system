@@ -227,3 +227,22 @@ export interface UserSession {
   status?: 'active' | 'inactive';
   token?: string;
 }
+
+/** RFC 7807 Problem Details representation */
+export interface ProblemDetails {
+  type?: string;
+  title?: string;
+  status?: number;
+  detail?: string;
+  instance?: string | null;
+  errors?: Record<string, string[]> | null;
+  [key: string]: unknown;
+}
+
+/** Standard operation result pattern */
+export interface ApiResult<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  problemDetails?: ProblemDetails;
+}

@@ -116,8 +116,9 @@ export const RuleManager: React.FC<Props> = memo(({
           setSelectedRuleIds((prev) => prev.filter((id) => id !== targetRule.id));
           setHasChanges(true);
           toast.success(`成功刪除規則：${targetRule.title}`);
-        } catch (err: any) {
-          toast.error(err.message || '刪除規則失敗');
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : '刪除規則失敗';
+          toast.error(msg);
         }
       }
     );
@@ -139,8 +140,9 @@ export const RuleManager: React.FC<Props> = memo(({
           setSelectedRuleIds([]);
           setHasChanges(true);
           toast.success(`成功刪除 ${selectedRuleIds.length} 項規則`);
-        } catch (err: any) {
-          toast.error(err.message || '批次刪除規則失敗');
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : '批次刪除規則失敗';
+          toast.error(msg);
         }
       }
     );
@@ -168,8 +170,9 @@ export const RuleManager: React.FC<Props> = memo(({
       await onSaveRules(localRules);
       setHasChanges(false);
       toast.success('履約規則與負責人已成功儲存');
-    } catch (err: any) {
-      toast.error(err.message || '儲存失敗');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '儲存失敗';
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }

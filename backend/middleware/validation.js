@@ -1,11 +1,27 @@
 const Joi = require('joi');
+const { createProblemDetails } = require('../errors/ProblemDetails');
 
 function validateBody(schema) {
   return (req, res, next) => {
     const { error, value } = schema.validate(req.body, { stripUnknown: true, abortEarly: false });
     if (error) {
       const messages = error.details.map(d => d.message).join('; ');
-      return res.status(400).json({ success: false, error: messages });
+      const errorsObj = {};
+      error.details.forEach(d => {
+        const key = d.path.join('.') || 'body';
+        if (!errorsObj[key]) errorsObj[key] = [];
+        errorsObj[key].push(d.message);
+      });
+
+      const problem = createProblemDetails({
+        type: 'https://httpstatuses.com/400',
+        title: 'Bad Request',
+        status: 400,
+        detail: messages,
+        instance: req.originalUrl || req.url,
+        errors: errorsObj
+      });
+      return res.status(400).json(problem);
     }
     req.body = value;
     next();

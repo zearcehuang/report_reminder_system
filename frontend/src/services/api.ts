@@ -1,5 +1,6 @@
 import {
   Project,
+  ProjectOwner,
   MilestoneRule,
   ScheduleItem,
   Holiday,
@@ -20,37 +21,92 @@ import {
 import { errorLogger } from './logger';
 import { toastManager } from '../context/ToastContext';
 
-const requestCache = new Map<string, { data: any; expiry: number }>();
-const inFlightRequests = new Map<string, Promise<{ ok: boolean; data: any }>>();
+const requestCache = new Map<string, { data: unknown; expiry: number }>();
+const inFlightRequests = new Map<string, Promise<{ ok: boolean; data: unknown }>>();
 const CACHE_TTL_MS = 5000;
 
-async function ensureAuthToken(): Promise<string | null> {
-  let token = localStorage.getItem('auth_token');
-  if (token) return token;
+function getStoredAuthToken(): string | null {
+  return localStorage.getItem('auth_token');
+}
 
-  try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@company.com', password: 'admin123' })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.token) {
-        localStorage.setItem('auth_token', data.token);
-        if (data.user) {
-          localStorage.setItem('auth_user', JSON.stringify(data.user));
-        }
-        return data.token;
+interface FetchApiOptions extends RequestInit {
+  _isRetry?: boolean;
+}
+
+let authPromise: Promise<boolean> | null = null;
+
+async function ensureAuth(forceRefresh = false): Promise<boolean> {
+  const existingToken = getStoredAuthToken();
+  if (existingToken && !forceRefresh) {
+    return true;
+  }
+
+  if (authPromise) {
+    return authPromise;
+  }
+
+  authPromise = (async () => {
+    try {
+      const storedUserStr = localStorage.getItem('auth_user');
+      let email = 'admin@company.com';
+      let password = 'admin123';
+      const DEFAULT_PASSWORDS: Record<string, string> = {
+        'admin@company.com': 'admin123',
+        'alex.chang@company.com': 'pm123',
+        'auditor@company.com': 'auditor123',
+      };
+
+      if (storedUserStr) {
+        try {
+          const u = JSON.parse(storedUserStr);
+          if (u.email && DEFAULT_PASSWORDS[u.email.toLowerCase()]) {
+            email = u.email;
+            password = DEFAULT_PASSWORDS[u.email.toLowerCase()];
+          }
+        } catch {}
       }
+
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('auth_user', JSON.stringify(data.user));
+        return true;
+      }
+
+      // If custom user login failed and it wasn't default admin, fallback to admin
+      if (email !== 'admin@company.com') {
+        const fallbackRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'admin@company.com', password: 'admin123' }),
+        });
+        const fallbackData = await fallbackRes.json();
+        if (fallbackRes.ok && fallbackData.token) {
+          localStorage.setItem('auth_token', fallbackData.token);
+          localStorage.setItem('auth_user', JSON.stringify(fallbackData.user));
+          return true;
+        }
+      }
+      return false;
+    } catch (err) {
+      errorLogger.log('API', 'ERROR', `Auto authentication failed: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    } finally {
+      authPromise = null;
     }
-  } catch {}
-  return null;
+  })();
+
+  return authPromise;
 }
 
 async function fetchApi<T>(
   url: string,
-  options: RequestInit = {},
+  options: FetchApiOptions = {},
   fallback?: T
 ): Promise<{ ok: boolean; data: T }> {
   const method = (options.method || 'GET').toUpperCase();
@@ -79,11 +135,7 @@ async function fetchApi<T>(
         ...(options.headers as Record<string, string> || {}),
       };
 
-      let token = localStorage.getItem('auth_token');
-      if (!token && !url.startsWith('/api/auth/')) {
-        token = await ensureAuthToken();
-      }
-
+      const token = getStoredAuthToken();
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -92,16 +144,20 @@ async function fetchApi<T>(
         headers['Content-Type'] = headers['Content-Type'] || 'application/json';
       }
 
-      let res = await fetch(url, { ...options, headers });
+      const res = await fetch(url, { ...options, headers });
 
-      // If 401 Unauthorized, try re-authenticating once and retry
-      if (res.status === 401 && !url.startsWith('/api/auth/')) {
-        localStorage.removeItem('auth_token');
-        const newToken = await ensureAuthToken();
-        if (newToken) {
-          headers['Authorization'] = `Bearer ${newToken}`;
-          res = await fetch(url, { ...options, headers });
+      // Handle 401 Unauthorized with silent retry
+      if (res.status === 401 && !options._isRetry && !url.startsWith('/api/auth/')) {
+        const reauthed = await ensureAuth(true);
+        if (reauthed) {
+          return fetchApi<T>(url, { ...options, _isRetry: true }, fallback);
+        } else {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
         }
+      } else if (res.status === 401 && !url.startsWith('/api/auth/')) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
       }
 
       if (res.ok) {
@@ -109,23 +165,23 @@ async function fetchApi<T>(
         if (isGet && cacheKey) {
           requestCache.set(cacheKey, { data, expiry: Date.now() + CACHE_TTL_MS });
         }
-        return { ok: true, data };
+        return { ok: true, data: data as T };
       }
       
-      // Parse structured exception response if available
+      // Parse structured exception response if available (RFC 7807 ProblemDetails support)
       let errorMsg = `HTTP Error ${res.status}`;
       try {
         const errData = await res.json();
         if (errData) {
-          errorMsg = errData.error || errData.message || errData.detail || errorMsg;
+          errorMsg = errData.detail || errData.error || errData.message || errorMsg;
         }
       } catch { }
 
       errorLogger.log('API', 'ERROR', `Fetch failed for ${url}: ${errorMsg}`);
       
       return { ok: false, data: fallback as T };
-    } catch (err: any) {
-      const errorMsg = err?.message || 'Network request failed';
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Network request failed';
       errorLogger.log('API', 'ERROR', `Fetch failed for ${url}: ${errorMsg}`);
       return { ok: false, data: fallback as T };
     } finally {
@@ -141,15 +197,55 @@ async function fetchApi<T>(
     inFlightRequests.set(cacheKey, fetchPromise);
   }
 
-  return fetchPromise;
+  return fetchPromise as Promise<{ ok: boolean; data: T }>;
+}
+
+interface RawProject {
+  id: string;
+  code?: string;
+  projectCode?: string;
+  name?: string;
+  projectName?: string;
+  dDay?: string;
+  advanceDays?: number;
+  advanceNoticeDays?: number;
+  advanceNoticeDaysList?: number[];
+  ownerName?: string;
+  ownerEmail?: string;
+  projectOwners?: ProjectOwner[];
+  status?: 'active' | 'archived' | 'draft';
+  updatedAt?: string;
+}
+
+interface RawSchedule {
+  id: string;
+  projectId?: string;
+  title: string;
+  dDayOffset?: number;
+  dayOffset?: number;
+  dueDate?: string;
+  deadlineDate?: string;
+  calculatedDate?: string;
+  noticeDate?: string;
+  wasShiftedByHoliday?: boolean;
+  isHolidayShifted?: boolean;
+  holidayName?: string;
+  owners?: string[];
+  status?: 'Pending' | 'Sent' | 'Failed' | 'Submitted';
+  isCompleted?: boolean;
+  advanceNoticeDays?: number;
+}
+
+interface ScheduleResponse {
+  items?: RawSchedule[];
 }
 
 export const api = {
   // Project APIs
   async getProjects(): Promise<Project[]> {
-    const { ok, data } = await fetchApi<any[]>('/api/projects', {}, []);
+    const { ok, data } = await fetchApi<RawProject[]>('/api/projects', {}, []);
     if (ok && Array.isArray(data)) {
-      return data.map((p: any) => ({
+      return data.map((p) => ({
         id: p.id,
         code: p.code || p.projectCode || p.id,
         name: p.name || p.projectName || '未命名專案',
@@ -173,7 +269,7 @@ export const api = {
       projectName: project.name || '新專案',
       advanceDays: project.advanceNoticeDays || 3
     };
-    const { ok, data } = await fetchApi<any>('/api/projects', {
+    const { ok, data } = await fetchApi<RawProject>('/api/projects', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
@@ -202,7 +298,7 @@ export const api = {
       projectName: updates.name,
       advanceDays: updates.advanceNoticeDays
     };
-    const { ok, data } = await fetchApi<any>(`/api/projects/${id}`, {
+    const { ok, data } = await fetchApi<RawProject>(`/api/projects/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
@@ -250,19 +346,11 @@ export const api = {
     return ok;
   },
 
-  // Rule APIs
+  // Milestone Rule APIs
   async getRules(projectId: string): Promise<MilestoneRule[]> {
-    const { ok, data } = await fetchApi<any[]>(`/api/projects/${projectId}/rules`, {}, []);
+    const { ok, data } = await fetchApi<MilestoneRule[]>(`/api/projects/${projectId}/rules`, {}, []);
     if (ok && Array.isArray(data)) {
-      return data.map((r: any) => ({
-        id: r.id,
-        projectId: r.projectId || projectId,
-        title: r.title,
-        dayOffset: r.dayOffset ?? 0,
-        owners: r.owners || [],
-        enabled: r.enabled !== undefined ? r.enabled : true,
-        notes: r.notes || '',
-      }));
+      return data;
     }
     return [];
   },
@@ -277,9 +365,9 @@ export const api = {
 
   // Schedule APIs
   async getSchedules(projectId: string): Promise<ScheduleItem[]> {
-    const { ok, data } = await fetchApi<any>(`/api/projects/${projectId}/schedules`, {}, { items: [] });
+    const { data } = await fetchApi<ScheduleResponse | RawSchedule[]>(`/api/projects/${projectId}/schedules`, {}, { items: [] });
     const items = Array.isArray(data) ? data : (data.items || []);
-    return items.map((item: any) => ({
+    return items.map((item) => ({
       id: item.id,
       projectId: item.projectId || projectId,
       title: item.title,
@@ -304,10 +392,10 @@ export const api = {
 
   // Sender Login Authentication
   async loginSender(email: string, password: string, name?: string): Promise<{ success: boolean; sender?: SenderAccount; message?: string; error?: string }> {
-    const { ok, data } = await fetchApi<any>('/api/auth/sender-login', {
+    const { ok, data } = await fetchApi<{ success: boolean; sender?: SenderAccount; message?: string; error?: string }>('/api/auth/sender-login', {
       method: 'POST',
       body: JSON.stringify({ email, password, name }),
-    });
+    }, { success: false, error: '發布寄件者身份驗證失敗' });
     if (ok && data.success) {
       return data;
     }
@@ -323,10 +411,17 @@ export const api = {
     outlookCalendarLink?: string;
     error?: string;
   }> {
-    const { ok, data } = await fetchApi<any>('/api/notifications/send-outlook-meeting', {
+    const { ok, data } = await fetchApi<{
+      success: boolean;
+      message: string;
+      icsContent?: string;
+      fileName?: string;
+      outlookCalendarLink?: string;
+      error?: string;
+    }>('/api/notifications/send-outlook-meeting', {
       method: 'POST',
       body: JSON.stringify(payload),
-    });
+    }, { success: false, message: 'Outlook 會議邀請發布失敗' });
     if (!ok || !data.success) {
       return {
         success: false,
@@ -343,9 +438,19 @@ export const api = {
 
   // Holiday APIs
   async getHolidays(): Promise<Holiday[]> {
-    const { ok, data } = await fetchApi<any[]>('/api/holidays', {}, []);
+    interface RawHolidayItem {
+      id?: string;
+      date: string;
+      name?: string;
+      description?: string;
+      isWorkday?: boolean;
+      isHoliday?: boolean;
+      category?: 'DGPA' | 'Custom';
+      source?: 'DGPA' | 'Custom';
+    }
+    const { ok, data } = await fetchApi<RawHolidayItem[]>('/api/holidays', {}, []);
     if (ok && Array.isArray(data)) {
-      return data.map((item: any, idx: number) => {
+      return data.map((item, idx) => {
         const isWorkday = item.isWorkday === true || item.isHoliday === false;
         return {
           id: item.id || `h-api-${idx}`,
@@ -410,6 +515,21 @@ export const api = {
 
   // Document Extract API
   async extractDocumentMilestones(file: File, projectDDay: string): Promise<DocumentExtractResult> {
+    interface RawExtractedItem {
+      id?: string;
+      title?: string;
+      originalText?: string;
+      contextSnippet?: string;
+      matchedDate?: string;
+      date?: string;
+      dayOffset?: number;
+      owners?: string[];
+      selected?: boolean;
+      deliverables?: string[];
+      penaltyTerms?: string;
+      clauseReference?: string;
+      location?: string;
+    }
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -420,8 +540,8 @@ export const api = {
       });
       if (res.ok) {
         const raw = await res.json();
-        const rawList = raw.extractedMilestones || raw.extractedItems || [];
-        const normalized: ExtractedMilestone[] = rawList.map((item: any, idx: number) => {
+        const rawList: RawExtractedItem[] = raw.extractedMilestones || raw.extractedItems || [];
+        const normalized: ExtractedMilestone[] = rawList.map((item, idx) => {
           const matchedDate = item.matchedDate || item.date || '2026-09-01';
           let dayOffset = item.dayOffset;
           if (dayOffset === undefined && projectDDay && matchedDate) {
@@ -452,8 +572,10 @@ export const api = {
           extractedMilestones: normalized,
         };
       }
-    } catch (err: any) {
-      errorLogger.log('API', 'ERROR', `解析文件 ${file.name} 失敗: ${err?.message || err}`, err?.stack);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      errorLogger.log('API', 'ERROR', `解析文件 ${file.name} 失敗: ${errorMsg}`, stack);
     }
     return { fileName: file.name, fileSize: '0 KB', parsedCount: 0, extractedMilestones: [] };
   },
@@ -500,8 +622,9 @@ export const api = {
         localStorage.setItem('auth_user', JSON.stringify(data.user));
       }
       return data;
-    } catch (e: any) {
-      return { success: false, message: e.message || '登入連線失敗' };
+    } catch (e: unknown) {
+      const errorMsg = e instanceof Error ? e.message : '登入連線失敗';
+      return { success: false, message: errorMsg };
     }
   },
 
@@ -519,6 +642,10 @@ export const api = {
       role: 'Admin',
       department: '資訊管理處'
     };
+  },
+
+  ensureAuthenticated(forceRefresh = false): Promise<boolean> {
+    return ensureAuth(forceRefresh);
   },
 
   // User Management APIs

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { UserItem, RoleItem } from '../../types';
 import { Search, Trash2, Download, UserPlus, UserCheck, UserX, Edit } from 'lucide-react';
 import { getRoleBadgeStyle } from '../../constants/permissionConstants';
-import { UserFormModal } from './UserFormModal';
+import { UserFormModal, UserFormData } from './UserFormModal';
 
 interface UserTabContentProps {
   users: UserItem[];
@@ -11,7 +11,7 @@ interface UserTabContentProps {
   onDeleteUser: (id: string, name: string) => Promise<void>;
   onBatchDeleteUsers: (ids: string[]) => Promise<void>;
   onImportContacts: () => Promise<void>;
-  onSaveUser: (data: any, editingUserId?: string) => Promise<void>;
+  onSaveUser: (data: UserFormData, editingUserId?: string) => Promise<void>;
 }
 
 export const UserTabContent: React.FC<UserTabContentProps> = ({
@@ -48,7 +48,7 @@ export const UserTabContent: React.FC<UserTabContentProps> = ({
     setIsUserFormOpen(true);
   };
 
-  const handleSave = async (data: any) => {
+  const handleSave = async (data: UserFormData) => {
     await onSaveUser(data, editingUser?.id);
     setIsUserFormOpen(false);
   };

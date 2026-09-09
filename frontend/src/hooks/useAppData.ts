@@ -18,6 +18,8 @@ export const useAppData = () => {
   const initData = useCallback(async () => {
     setIsLoading(true);
     try {
+      await api.ensureAuthenticated();
+      setCurrentUser(api.getAuthSession());
       const projList = await api.getProjects();
       setProjects(projList);
       if (projList.length > 0) {

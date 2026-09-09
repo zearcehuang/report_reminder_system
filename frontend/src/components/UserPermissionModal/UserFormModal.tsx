@@ -2,20 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { UserItem, RoleItem } from '../../types';
 import { X } from 'lucide-react';
 
+export interface UserFormData {
+  formName: string;
+  formEmail: string;
+  formPassword?: string;
+  formRole: string;
+  formDepartment: string;
+  formTitle: string;
+  formStatus: 'active' | 'inactive';
+}
+
 interface UserFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingUser: UserItem | null;
   roles: RoleItem[];
-  onSave: (data: {
-    formName: string;
-    formEmail: string;
-    formPassword?: string;
-    formRole: string;
-    formDepartment: string;
-    formTitle: string;
-    formStatus: 'active' | 'inactive';
-  }) => Promise<void>;
+  onSave: (data: UserFormData) => Promise<void>;
 }
 
 export const UserFormModal: React.FC<UserFormModalProps> = ({

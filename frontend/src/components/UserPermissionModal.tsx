@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { Shield, Users, X, AlertCircle, Sparkles } from 'lucide-react';
 import { UserTabContent } from './UserPermissionModal/UserTabContent';
 import { RoleTabContent } from './UserPermissionModal/RoleTabContent';
+import { UserFormData } from './UserPermissionModal/UserFormModal';
 import { useToast } from '../hooks/useToast';
 
 interface Props {
@@ -41,7 +42,7 @@ export const UserPermissionModal: React.FC<Props> = ({
       const roleList = await api.getRoles();
       setUsers(userList);
       setRoles(roleList);
-    } catch (e: any) {
+    } catch {
       setError('無法載入使用者與角色權限資料');
     } finally {
       setIsLoading(false);
@@ -56,7 +57,7 @@ export const UserPermissionModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   // --- USER HANDLERS ---
-  const handleSaveUser = async (data: any, editingUserId?: string) => {
+  const handleSaveUser = async (data: UserFormData, editingUserId?: string) => {
     if (!data.formName || !data.formEmail) {
       setError('請填寫姓名與 Email');
       return;
@@ -97,8 +98,9 @@ export const UserPermissionModal: React.FC<Props> = ({
       }
       await loadData();
       if (onUserUpdated) onUserUpdated();
-    } catch (e: any) {
-      setError(e.message || '操作失敗');
+    } catch (e: unknown) {
+      const errorMsg = e instanceof Error ? e.message : '操作失敗';
+      setError(errorMsg);
     }
   };
 
@@ -112,37 +114,29 @@ export const UserPermissionModal: React.FC<Props> = ({
   };
 
   const handleDeleteUser = async (id: string, name: string) => {
-    toast.confirm(
-      '刪除使用者',
-      `確定要刪除使用者「${name}」嗎？`,
-      async () => {
-        const ok = await api.deleteUser(id);
-        if (ok) {
-          showNotification(`已刪除使用者 ${name}`);
-          toast.success(`已刪除使用者 ${name}`);
-          await loadData();
-        } else {
-          toast.error('刪除使用者失敗');
-        }
+    toast.confirm('刪除使用者', `確定要刪除使用者「${name}」嗎？`, async () => {
+      const ok = await api.deleteUser(id);
+      if (ok) {
+        showNotification(`已刪除使用者 ${name}`);
+        toast.success(`已刪除使用者 ${name}`);
+        await loadData();
+      } else {
+        toast.error('刪除使用者失敗');
       }
-    );
+    });
   };
 
   const handleBatchDeleteUsers = async (ids: string[]) => {
-    toast.confirm(
-      '批次刪除使用者',
-      `確定要刪除選取的 ${ids.length} 位使用者嗎？`,
-      async () => {
-        const ok = await api.batchDeleteUsers(ids);
-        if (ok) {
-          showNotification(`已成功批次刪除 ${ids.length} 位使用者`);
-          toast.success(`已成功批次刪除 ${ids.length} 位使用者`);
-          await loadData();
-        } else {
-          toast.error('批次刪除使用者失敗');
-        }
+    toast.confirm('批次刪除使用者', `確定要刪除選取的 ${ids.length} 位使用者嗎？`, async () => {
+      const ok = await api.batchDeleteUsers(ids);
+      if (ok) {
+        showNotification(`已成功批次刪除 ${ids.length} 位使用者`);
+        toast.success(`已成功批次刪除 ${ids.length} 位使用者`);
+        await loadData();
+      } else {
+        toast.error('批次刪除使用者失敗');
       }
-    );
+    });
   };
 
   const handleImportContacts = async () => {
@@ -243,45 +237,39 @@ export const UserPermissionModal: React.FC<Props> = ({
         )}
 
         <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--surface-glass-border)', paddingBottom: '0.5rem', marginBottom: '1.25rem' }}>
-          <button
-            onClick={() => setActiveTab('users')}
-            style={{
-              background: activeTab === 'users' ? 'var(--accent-gradient)' : 'transparent',
-              border: 'none',
-              color: activeTab === 'users' ? '#ffffff' : 'var(--text-secondary)',
-              padding: '0.55rem 1.25rem',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <Users size={18} /> 👤 使用者維護 ({users.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('roles')}
-            style={{
-              background: activeTab === 'roles' ? 'var(--accent-gradient)' : 'transparent',
-              border: 'none',
-              color: activeTab === 'roles' ? '#ffffff' : 'var(--text-secondary)',
-              padding: '0.55rem 1.25rem',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <Shield size={18} /> 🛡️ 角色群組授權矩陣 ({roles.length})
-          </button>
+          {(['users', 'roles'] as const).map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  background: isActive ? 'var(--accent-gradient)' : 'transparent',
+                  border: 'none',
+                  color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {tab === 'users' ? (
+                  <>
+                    <Users size={18} /> 👤 使用者維護 ({users.length})
+                  </>
+                ) : (
+                  <>
+                    <Shield size={18} /> 🛡️ 角色群組授權矩陣 ({roles.length})
+                  </>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {activeTab === 'users' && (

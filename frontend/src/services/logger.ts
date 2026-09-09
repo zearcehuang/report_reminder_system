@@ -7,13 +7,13 @@ export interface LogEntry {
   level: 'ERROR' | 'WARN' | 'INFO';
   message: string;
   stack?: string;
-  extra?: any;
+  extra?: unknown;
 }
 
 const frontendLogs: LogEntry[] = [];
 
 export const errorLogger = {
-  log(source: LogEntry['source'], level: LogEntry['level'], message: string, stack?: string, extra?: any) {
+  log(source: LogEntry['source'], level: LogEntry['level'], message: string, stack?: string, extra?: unknown) {
     const entry: LogEntry = {
       id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       timestamp: new Date().toISOString(),

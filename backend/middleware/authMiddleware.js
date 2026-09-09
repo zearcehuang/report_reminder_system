@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { readJsonSync } = require('../services/jsonStore');
 const { logError } = require('../services/errorLogger');
+const { hashPassword } = require('../services/passwordService');
+const { createProblemDetails } = require('../errors/ProblemDetails');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -29,7 +31,7 @@ function getUsers() {
     {
       id: 'usr-admin-1',
       email: 'admin@company.com',
-      password: 'admin123',
+      password: hashPassword('admin123'),
       name: '系統最高管理員',
       role: 'Admin',
       department: '資訊管理處',
@@ -39,7 +41,7 @@ function getUsers() {
     {
       id: 'usr-pm-1',
       email: 'alex.chang@company.com',
-      password: 'pm123',
+      password: hashPassword('pm123'),
       name: '張小明',
       role: 'PM',
       department: '專案管理一部',
@@ -49,7 +51,7 @@ function getUsers() {
     {
       id: 'usr-auditor-1',
       email: 'auditor@company.com',
-      password: 'auditor123',
+      password: hashPassword('auditor123'),
       name: '陳美玲',
       role: 'Auditor',
       department: '法務與合約稽核室',
@@ -129,11 +131,15 @@ function authenticateUser(req, res, next) {
 
 function requireAuth(req, res, next) {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: '未授權存取 (Authentication Required)',
-      message: '請先登入以取得存取權限'
+    const problem = createProblemDetails({
+      type: 'https://httpstatuses.com/401',
+      title: 'Unauthorized',
+      status: 401,
+      detail: '未授權存取 (Authentication Required)',
+      instance: req.originalUrl || req.url,
+      extensions: { message: '請先登入以取得存取權限' }
     });
+    return res.status(401).json(problem);
   }
   next();
 }
@@ -141,11 +147,15 @@ function requireAuth(req, res, next) {
 function requireRole(allowedRoles = []) {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: '未授權存取 (Authentication Required)',
-        message: '請先登入以取得存取權限'
+      const problem = createProblemDetails({
+        type: 'https://httpstatuses.com/401',
+        title: 'Unauthorized',
+        status: 401,
+        detail: '未授權存取 (Authentication Required)',
+        instance: req.originalUrl || req.url,
+        extensions: { message: '請先登入以取得存取權限' }
       });
+      return res.status(401).json(problem);
     }
 
     const userRole = req.user.role;
@@ -153,11 +163,15 @@ function requireRole(allowedRoles = []) {
     if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
       const errMsg = `當前角色 [${userRole}] 無存取權限，需要 [${allowedRoles.join(', ')}] 權限`;
       logError('AUTH_ROLE_DENIED', errMsg, { user: req.user, url: req.originalUrl, method: req.method });
-      return res.status(403).json({
-        success: false,
-        error: '權限不足 (Access Denied)',
-        message: errMsg
+      const problem = createProblemDetails({
+        type: 'https://httpstatuses.com/403',
+        title: 'Forbidden',
+        status: 403,
+        detail: '權限不足 (Access Denied)',
+        instance: req.originalUrl || req.url,
+        extensions: { message: errMsg }
       });
+      return res.status(403).json(problem);
     }
     next();
   };
@@ -166,11 +180,15 @@ function requireRole(allowedRoles = []) {
 function requirePermission(permissionCode) {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: '未授權存取 (Authentication Required)',
-        message: '請先登入以取得存取權限'
+      const problem = createProblemDetails({
+        type: 'https://httpstatuses.com/401',
+        title: 'Unauthorized',
+        status: 401,
+        detail: '未授權存取 (Authentication Required)',
+        instance: req.originalUrl || req.url,
+        extensions: { message: '請先登入以取得存取權限' }
       });
+      return res.status(401).json(problem);
     }
 
     const userRole = req.user.role;
@@ -184,11 +202,15 @@ function requirePermission(permissionCode) {
 
     const errMsg = `當前角色 [${userRole}] 缺少所需模組權限點 [${permissionCode}]`;
     logError('AUTH_PERMISSION_DENIED', errMsg, { user: req.user, permissionCode, url: req.originalUrl, method: req.method });
-    return res.status(403).json({
-      success: false,
-      error: '權限不足 (Permission Denied)',
-      message: errMsg
+    const problem = createProblemDetails({
+      type: 'https://httpstatuses.com/403',
+      title: 'Forbidden',
+      status: 403,
+      detail: '權限不足 (Permission Denied)',
+      instance: req.originalUrl || req.url,
+      extensions: { message: errMsg }
     });
+    return res.status(403).json(problem);
   };
 }
 
